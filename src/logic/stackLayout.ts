@@ -125,17 +125,18 @@ export function syncStackContainers(
 
     if (isMultiBlock) {
       // Multi-block stack: needs container
-      const firstBlock = stackNodes[0] as any
-      const hasParent = Boolean(firstBlock.parentId)
+      // Find any block that's already parented to this container
+      const parentedBlock = stackNodes.find((b: any) => b.parentId === containerId)
 
       let containerX: number, containerY: number
 
-      if (hasParent && existingContainer) {
-        // Blocks already have parentId, keep existing container position
+      if (existingContainer && parentedBlock) {
+        // At least one block is already parented, keep existing container position
         containerX = existingContainer.position.x
         containerY = existingContainer.position.y
       } else {
-        // Blocks have absolute positions, calculate container position from them
+        // No parented blocks yet, calculate container position from absolute positions
+        const firstBlock = stackNodes[0] as any
         const absoluteYs = stackNodes.map(n => n.position.y)
         const minAbsY = Math.min(...absoluteYs)
         containerX = firstBlock.position.x - 4

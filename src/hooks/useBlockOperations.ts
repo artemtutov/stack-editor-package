@@ -9,7 +9,6 @@ import {
   getPreviousBlockByY,
 } from '../logic/stackState'
 import { ensureInsertionOrder } from '../logic/stackLayout'
-import type { StackAnchors } from '../logic/stackLayout'
 
 export type BlockCallbacks = {
   onChange: (text: string) => void
@@ -29,7 +28,6 @@ export type NodeRefsMap = Record<
 >
 
 export type UseBlockOperationsOptions = {
-  stackAnchors: React.MutableRefObject<StackAnchors>
   nodeRefsMap: React.MutableRefObject<NodeRefsMap>
   nodesRef: React.MutableRefObject<Node[]>
   applyLayout: (stackId: string, nodes: Node[]) => Node[]
@@ -55,7 +53,6 @@ export function useBlockOperations(
   setNodes: (updater: (nodes: Node[]) => Node[]) => void
 ): UseBlockOperationsResult {
   const {
-    stackAnchors,
     nodeRefsMap,
     nodesRef,
     applyLayout,
@@ -144,14 +141,11 @@ export function useBlockOperations(
         if (!nodeRefsMap.current[newId]) nodeRefsMap.current[newId] = { current: null }
 
         const stackId = currentNode.data.stackId || currentNodeId
-        if (!currentNode.data.stackId && !stackAnchors.current[stackId]) {
-          stackAnchors.current[stackId] = { x: currentNode.position.x, y: currentNode.position.y }
-        }
 
         const newNode: Node = {
           id: newId,
           type: 'block',
-          position: { x: currentNode.position.x, y: currentNode.position.y },
+          position: { x: 4, y: 0 },  // Relative position, layout will fix
           dragHandle: '.drag-handle',
           data: {
             text: '',
@@ -210,7 +204,8 @@ export function useBlockOperations(
         return final
       })
     },
-    [setNodes, stackAnchors, nodeRefsMap, applyLayout, handleHeightChange, handleSlashCommand, tabHandlersRef]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [setNodes, nodeRefsMap, applyLayout, handleHeightChange, handleSlashCommand, tabHandlersRef]
   )
 
   const handleSplit = useCallback(
@@ -220,9 +215,6 @@ export function useBlockOperations(
         if (!node) return nds
 
         const stackId = node.data?.stackId || nodeId
-        if (!node.data.stackId && !stackAnchors.current[stackId]) {
-          stackAnchors.current[stackId] = { x: node.position.x, y: node.position.y }
-        }
 
         const newId = nextBlockId()
         if (!nodeRefsMap.current[newId]) nodeRefsMap.current[newId] = { current: null }
@@ -234,7 +226,7 @@ export function useBlockOperations(
         const newNode: Node = {
           id: newId,
           type: 'block',
-          position: { x: node.position.x, y: node.position.y },
+          position: { x: 4, y: 0 },  // Relative position, layout will fix
           dragHandle: '.drag-handle',
           data: {
             text: after,
@@ -284,7 +276,8 @@ export function useBlockOperations(
         return final
       })
     },
-    [setNodes, stackAnchors, nodeRefsMap, applyLayout, handleHeightChange, handleSlashCommand, tabHandlersRef]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [setNodes, nodeRefsMap, applyLayout, handleHeightChange, handleSlashCommand, tabHandlersRef, addBelow]
   )
 
   const createBlockCallbacks = useCallback(

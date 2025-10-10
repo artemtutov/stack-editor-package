@@ -1,5 +1,4 @@
 import type { Node } from '@xyflow/react'
-import type { StackAnchors } from './stackLayout'
 
 export type DropInfo = {
   show: boolean
@@ -15,88 +14,112 @@ export type ContainerDragState = {
 }
 
 /**
+ * Get absolute position of a node (handles parent-child relationships)
+ */
+export function getAbsolutePosition(
+  node: Node,
+  allNodes: Node[]
+): { x: number; y: number } {
+  if (!(node as any).parentId) return node.position
+
+  const parent = allNodes.find((n) => n.id === (node as any).parentId)
+  if (!parent) return node.position
+
+  const parentAbs = getAbsolutePosition(parent, allNodes)
+  return {
+    x: parentAbs.x + node.position.x,
+    y: parentAbs.y + node.position.y,
+  }
+}
+
+/**
  * Calculate where a dragged node should be dropped in a stack
  */
 export function calculateDropIndicator(
   draggedNode: Node,
   allNodes: Node[],
-  stackAnchors: StackAnchors,
   dragStartStackId: string | null,
-  dragStartAnchorX: number,
   viewport: { x: number; y: number; zoom: number },
   xTolerance: number,
   blockWidth: number
 ): DropInfo {
   const draggedNodeId = draggedNode.id
-  const pointerX = draggedNode.position.x
-  const pointerY = draggedNode.position.y
+  const draggedAbsPos = getAbsolutePosition(draggedNode, allNodes)
+  const pointerX = draggedAbsPos.x
+  const pointerY = draggedAbsPos.y
 
-  // Build stacks map
-  const stacks: Record<string, Node[]> = {}
-  ;(allNodes as any).forEach((n: any) => {
-    const sid = n.data?.stackId
-    if (n.type !== 'stackContainer' && sid) {
-      if (!stacks[sid]) stacks[sid] = []
-      stacks[sid].push(n)
-    }
-  })
-
-  // Prefer original stack if aligned in X
-  let targetStackId: string | null = null
-
-  const alignedWithStart = dragStartStackId && Math.abs(pointerX - dragStartAnchorX) <= xTolerance
-  if (alignedWithStart && dragStartStackId && stacks[dragStartStackId]) {
-    targetStackId = dragStartStackId
-  } else {
-    // Pick stack whose anchor X is within tolerance and closest in X
-    let bestSid: string | null = null
-    let bestDx = Infinity
-    Object.keys(stacks).forEach((sid) => {
-      const ax = stackAnchors[sid]?.x ?? (stacks[sid] as any)[0].position.x
-      const dx = Math.abs(pointerX - ax)
-      if (dx <= xTolerance && dx < bestDx) {
-        bestDx = dx
-        bestSid = sid
-      }
-    })
-    targetStackId = bestSid
-  }
-
-  if (!targetStackId) {
+  // Get all containers
+  const containers = allNodes.filter((n: any) => n.type === 'stackContainer')
+  if (containers.length === 0) {
     return { show: false, targetStackId: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 } }
   }
 
-  const stackBlocks = (stacks[targetStackId] as any)
-    .filter((n: any) => n.id !== draggedNodeId)
+  // Find target container based on X alignment
+  let targetContainer: Node | null = null
+  let targetStackId: string | null = null
+
+  // First try to match the start stack if X-aligned
+  if (dragStartStackId) {
+    const startContainer = containers.find((c: any) => c.data?.stackId === dragStartStackId)
+    if (startContainer && Math.abs(pointerX - startContainer.position.x) <= xTolerance) {
+      targetContainer = startContainer
+      targetStackId = dragStartStackId
+    }
+  }
+
+  // Otherwise find closest container within X tolerance
+  if (!targetContainer) {
+    let bestDx = Infinity
+    containers.forEach((container: any) => {
+      const dx = Math.abs(pointerX - container.position.x)
+      if (dx <= xTolerance && dx < bestDx) {
+        bestDx = dx
+        targetContainer = container
+        targetStackId = container.data?.stackId
+      }
+    })
+  }
+
+  if (!targetContainer || !targetStackId) {
+    return { show: false, targetStackId: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 } }
+  }
+
+  // Get blocks in target stack
+  const stackBlocks = (allNodes as any)
+    .filter((n: any) => n.type !== 'stackContainer' && n.data?.stackId === targetStackId && n.id !== draggedNodeId)
     .sort((a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0))
 
+  // Calculate insertion point based on absolute Y
   let insertionIndex = stackBlocks.length
-  let indicatorY = pointerY
+  let indicatorAbsY = pointerY
 
   if (stackBlocks.length > 0) {
     for (let i = 0; i < stackBlocks.length; i++) {
       const block = stackBlocks[i]
+      const blockAbsPos = getAbsolutePosition(block, allNodes)
       const blockHeight = block.data?.height || 24
-      const blockMidY = block.position.y + blockHeight / 2
+      const blockMidY = blockAbsPos.y + blockHeight / 2
+
       if (pointerY < blockMidY) {
         insertionIndex = i
-        indicatorY = block.position.y
+        indicatorAbsY = blockAbsPos.y
         break
       }
       if (i === stackBlocks.length - 1) {
         insertionIndex = stackBlocks.length
-        indicatorY = block.position.y + blockHeight
+        indicatorAbsY = blockAbsPos.y + blockHeight
       }
     }
   } else {
     insertionIndex = 0
-    indicatorY = pointerY
+    indicatorAbsY = pointerY
   }
 
-  const anchorX = stackAnchors[targetStackId]?.x ?? (stackBlocks[0]?.position.x ?? pointerX)
+  // Convert to screen coordinates for indicator
+  const containerAbsX = targetContainer.position.x
   const { x: vx, y: vy, zoom } = viewport
-  const screenX = vx + anchorX * zoom
-  const screenY = vy + indicatorY * zoom
+  const screenX = vx + containerAbsX * zoom
+  const screenY = vy + indicatorAbsY * zoom
   const screenW = blockWidth * zoom
 
   return {
@@ -105,40 +128,6 @@ export function calculateDropIndicator(
     insertionIndex,
     position: { x: screenX, y: screenY, width: screenW },
   }
-}
-
-/**
- * Apply container drag movement to all blocks in the stack
- */
-export function applyContainerDrag(
-  allNodes: Node[],
-  containerNode: Node,
-  dragState: ContainerDragState,
-  stackAnchors: StackAnchors
-): Node[] {
-  const { stackId, pos, origPositions } = dragState
-  const deltaX = containerNode.position.x - pos.x
-  const deltaY = containerNode.position.y - pos.y
-
-  const moved = (allNodes as any).map((n: any) => {
-    if (n.type !== 'stackContainer' && n.data?.stackId === stackId) {
-      const orig = origPositions[n.id]
-      if (orig) {
-        return { ...n, position: { x: orig.x + deltaX, y: orig.y + deltaY } }
-      }
-    }
-    if (n.id === containerNode.id) return { ...n, position: containerNode.position }
-    return n
-  })
-
-  // Update anchor to new top during drag
-  const stackBlocks = moved.filter((n: any) => n.data?.stackId === stackId && n.type !== 'stackContainer')
-  if (stackBlocks.length > 0) {
-    const topBlock = [...stackBlocks].sort((a: any, b: any) => a.position.y - b.position.y)[0]
-    stackAnchors[stackId] = { x: topBlock.position.x, y: topBlock.position.y }
-  }
-
-  return moved
 }
 
 /**
@@ -191,32 +180,3 @@ export function reorderStack(
   )
 }
 
-/**
- * Preserve original stack top position after drag
- */
-export function preserveStackTop(
-  allNodes: Node[],
-  stackId: string,
-  originalTopY: number,
-  originalTopId: string
-): Node[] {
-  const stackBlocks = (allNodes as any)
-    .filter((n: any) => n.data.stackId === stackId && n.type !== 'stackContainer')
-    .sort((a: any, b: any) => a.position.y - b.position.y)
-
-  if (stackBlocks.length === 0) return allNodes
-
-  const currentTopNode = stackBlocks[0]
-  if (currentTopNode.id !== originalTopId) return allNodes
-
-  const currentTop = currentTopNode.position.y
-  const anchorDelta = originalTopY - currentTop
-
-  if (!anchorDelta) return allNodes
-
-  return (allNodes as any).map((n: any) =>
-    n.data.stackId === stackId
-      ? { ...n, position: { ...n.position, y: n.position.y + anchorDelta } }
-      : n
-  )
-}

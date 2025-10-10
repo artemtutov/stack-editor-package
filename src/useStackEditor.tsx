@@ -49,7 +49,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   }, [nodes])
 
   // Layout management
-  const { stackAnchors, applyLayout, syncContainers } = useStackLayout({
+  const { applyLayout, syncContainers } = useStackLayout({
     blockWidth: opts.blockWidth,
     gap: opts.gap,
     headerHeight: opts.headerHeight,
@@ -97,7 +97,6 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   // Block operations
   const blockOps = useBlockOperations(
     {
-      stackAnchors,
       nodeRefsMap,
       nodesRef,
       applyLayout,
@@ -127,8 +126,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     xTolerance: opts.xTolerance,
     blockWidth: opts.blockWidth,
     enableShiftGroupDrag: opts.enableShiftGroupDrag,
-    stackAnchors,
     gap: opts.gap,
+    headerHeight: opts.headerHeight,
   })
 
   // Viewport tracking
@@ -202,9 +201,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       } as BlockData,
     }))
 
+    // Apply layout (sync containers will handle parent-child setup)
     let laidOut: Node[] = wired
     if (created.length > 1) {
-      stackAnchors.current[stackId!] = { x: created[0].position.x, y: created[0].position.y }
       laidOut = applyLayout(stackId!, wired) as Node[]
     } else {
       laidOut = syncContainers(wired) as Node[]

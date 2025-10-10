@@ -1,9 +1,8 @@
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import type { Node } from '@xyflow/react'
 import {
   applyStackLayout,
   syncStackContainers,
-  type StackAnchors,
 } from '../logic/stackLayout'
 
 export type UseStackLayoutOptions = {
@@ -13,7 +12,6 @@ export type UseStackLayoutOptions = {
 }
 
 export type UseStackLayoutResult = {
-  stackAnchors: React.MutableRefObject<StackAnchors>
   applyLayout: (stackId: string, nodes: Node[]) => Node[]
   syncContainers: (nodes: Node[]) => Node[]
 }
@@ -23,14 +21,12 @@ export type UseStackLayoutResult = {
  */
 export function useStackLayout(options: UseStackLayoutOptions): UseStackLayoutResult {
   const { blockWidth, gap, headerHeight } = options
-  const stackAnchorsRef = useRef<StackAnchors>({})
 
   const applyLayout = useCallback(
     (stackId: string, nodes: Node[]): Node[] => {
       return applyStackLayout(
         stackId,
         nodes,
-        stackAnchorsRef.current,
         gap,
         blockWidth,
         headerHeight
@@ -41,13 +37,12 @@ export function useStackLayout(options: UseStackLayoutOptions): UseStackLayoutRe
 
   const syncContainers = useCallback(
     (nodes: Node[]): Node[] => {
-      return syncStackContainers(nodes, stackAnchorsRef.current, blockWidth, headerHeight)
+      return syncStackContainers(nodes, blockWidth, headerHeight)
     },
     [blockWidth, headerHeight]
   )
 
   return {
-    stackAnchors: stackAnchorsRef,
     applyLayout,
     syncContainers,
   }

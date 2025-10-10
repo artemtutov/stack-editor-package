@@ -1,7 +1,5 @@
 import type { Node } from '@xyflow/react'
 
-export type StackAnchors = Record<string, { x: number; y: number }>
-
 /**
  * Get all block nodes belonging to a specific stack
  */
@@ -59,38 +57,33 @@ export function updateBottomNodeFlags(allNodes: Node[]): Node[] {
 }
 
 /**
- * Calculate and apply vertical layout for a stack
+ * Calculate and apply vertical layout for a stack (relative positions)
  */
 export function calculateStackLayout(
   stackId: string,
   allNodes: Node[],
-  stackAnchors: StackAnchors,
-  gap: number
+  gap: number,
+  headerHeight: number
 ): Node[] {
   let updated = ensureInsertionOrder(stackId, allNodes)
   const blocks = getStackBlocks(stackId, updated)
   if (blocks.length === 0) return updated
 
-  let anchor = stackAnchors[stackId]
-  if (!anchor) {
-    const topByY = [...blocks].sort((a, b) => a.position.y - b.position.y)[0]
-    anchor = { x: topByY.position.x, y: topByY.position.y }
-    stackAnchors[stackId] = anchor
-  }
-
   const sorted = [...blocks].sort(
     (a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0)
   )
 
-  let currentY = anchor.y
+  // Calculate relative Y positions (x is always 4 for padding)
+  let currentY = headerHeight + 4
   const idToPos = new Map<string, { x: number; y: number }>()
 
   sorted.forEach((b: any) => {
     const h = b.data?.height || 24
-    idToPos.set(b.id, { x: anchor!.x, y: currentY })
+    idToPos.set(b.id, { x: 4, y: currentY })
     currentY += h + gap
   })
 
+  // Update positions (relative to parent container)
   updated = updated.map((n: any) =>
     n.type !== 'stackContainer' && n.data?.stackId === stackId
       ? { ...n, position: { x: idToPos.get(n.id)!.x, y: idToPos.get(n.id)!.y } }
@@ -102,14 +95,15 @@ export function calculateStackLayout(
 
 /**
  * Sync stack container nodes to match their block positions
+ * Ensures parent-child relationships and sizes containers correctly
  */
 export function syncStackContainers(
   allNodes: Node[],
-  stackAnchors: StackAnchors,
   blockWidth: number,
   headerHeight: number
 ): Node[] {
   const blockNodes = allNodes.filter((n: any) => n.type !== 'stackContainer')
+  const existingContainers = allNodes.filter((n: any) => n.type === 'stackContainer')
 
   const stackGroups: Record<string, Node[]> = {}
   blockNodes.forEach((node: any) => {
@@ -120,39 +114,96 @@ export function syncStackContainers(
     }
   })
 
-  const updatedBlocks = blockNodes.map((n: any) => {
-    const sid = n.data?.stackId
-    const inMultiNodeStack = sid && (stackGroups[sid]?.length || 0) > 1
-    if (inMultiNodeStack) {
-      return { ...n, className: 'in-stack' }
+  const updatedBlocks: Node[] = []
+  const newContainers: Node[] = []
+
+  // Process each stack
+  Object.entries(stackGroups).forEach(([stackId, stackNodes]) => {
+    const isMultiBlock = stackNodes.length > 1
+    const containerId = `container-${stackId}`
+    const existingContainer = existingContainers.find(c => c.id === containerId)
+
+    if (isMultiBlock) {
+      // Multi-block stack: needs container
+      const firstBlock = stackNodes[0] as any
+      const hasParent = Boolean(firstBlock.parentId)
+
+      let containerX: number, containerY: number
+
+      if (hasParent && existingContainer) {
+        // Blocks already have parentId, keep existing container position
+        containerX = existingContainer.position.x
+        containerY = existingContainer.position.y
+      } else {
+        // Blocks have absolute positions, calculate container position from them
+        const absoluteYs = stackNodes.map(n => n.position.y)
+        const minAbsY = Math.min(...absoluteYs)
+        containerX = firstBlock.position.x - 4
+        containerY = minAbsY - headerHeight
+      }
+
+      // Convert blocks to relative positions if needed
+      stackNodes.forEach((block: any) => {
+        let relativeX: number, relativeY: number
+
+        if (block.parentId === containerId) {
+          // Already relative
+          relativeX = block.position.x
+          relativeY = block.position.y
+        } else {
+          // Convert from absolute to relative
+          relativeX = block.position.x - containerX
+          relativeY = block.position.y - containerY
+        }
+
+        updatedBlocks.push({
+          ...block,
+          position: { x: relativeX, y: relativeY },
+          parentId: containerId,
+          className: 'in-stack'
+        })
+      })
+
+      // Calculate container dimensions from relative positions
+      const relativeYs = updatedBlocks
+        .filter(b => (b as any).data?.stackId === stackId)
+        .map((b: any) => b.position.y)
+      const heights = updatedBlocks
+        .filter(b => (b as any).data?.stackId === stackId)
+        .map((b: any) => b.data.height || 24)
+      const minY = Math.min(...relativeYs)
+      const maxY = Math.max(...relativeYs.map((y: number, i: number) => y + heights[i]))
+
+      const containerWidth = blockWidth + 8
+      const containerHeight = maxY - minY + headerHeight + 8
+
+      newContainers.push({
+        id: containerId,
+        type: 'stackContainer',
+        position: { x: containerX, y: containerY },
+        data: { width: containerWidth, height: containerHeight, stackId },
+        selectable: false,
+        draggable: true,
+        dragHandle: '.stack-drag-handle',
+        zIndex: -1,
+      } as Node)
+    } else {
+      // Single block: no parent needed
+      stackNodes.forEach((block: any) => {
+        const { className, parentId, ...rest } = block
+        updatedBlocks.push(rest as Node)
+      })
     }
-    const { className, ...rest } = n
-    return rest as any
   })
 
-  const newContainers: Node[] = Object.entries(stackGroups).map(([stackId, stackNodes]) => {
-    const anchor = stackAnchors[stackId]
-    const ys = (stackNodes as any).map((n: any) => n.position.y)
-    const heights = (stackNodes as any).map((n: any) => n.data.height || 24)
-    const minY = Math.min(...ys)
-    const maxY = Math.max(...ys.map((y: number, i: number) => y + heights[i]))
-    const containerWidth = blockWidth + 8
-    const containerHeight = maxY - minY + (headerHeight + 8)
-    const containerX = anchor ? anchor.x - 4 : (stackNodes as any)[0].position.x - 4
-
-    return {
-      id: `container-${stackId}`,
-      type: 'stackContainer',
-      position: { x: containerX, y: minY - headerHeight },
-      data: { width: containerWidth, height: containerHeight, stackId },
-      selectable: false,
-      draggable: true,
-      dragHandle: '.stack-drag-handle',
-      zIndex: -1,
-    } as Node
+  // Handle blocks without stackId
+  blockNodes.forEach((node: any) => {
+    if (!node.data?.stackId) {
+      updatedBlocks.push(node)
+    }
   })
 
-  return [...updatedBlocks, ...newContainers]
+  return [...newContainers, ...updatedBlocks]
 }
 
 /**
@@ -161,12 +212,16 @@ export function syncStackContainers(
 export function applyStackLayout(
   stackId: string,
   allNodes: Node[],
-  stackAnchors: StackAnchors,
   gap: number,
   blockWidth: number,
   headerHeight: number
 ): Node[] {
-  const laidOut = calculateStackLayout(stackId, allNodes, stackAnchors, gap)
-  const withFlags = updateBottomNodeFlags(laidOut)
-  return syncStackContainers(withFlags, stackAnchors, blockWidth, headerHeight)
+  // First ensure parent-child relationships and container exists
+  const withContainers = syncStackContainers(allNodes, blockWidth, headerHeight)
+
+  // Then calculate relative Y positions for stacked blocks
+  const laidOut = calculateStackLayout(stackId, withContainers, gap, headerHeight)
+
+  // Finally update bottom node flags
+  return updateBottomNodeFlags(laidOut)
 }

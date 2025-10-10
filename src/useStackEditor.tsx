@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNodesState, type Node, type NodeTypes } from '@xyflow/react'
+import { useNodesState, applyNodeChanges, useStoreApi, type Node, type NodeTypes, type NodeChange } from '@xyflow/react'
+import { useLiveResize } from './stores/useLiveResize'
 import NotionBlock from './renderers/NotionBlock'
 import StackContainer from './renderers/StackContainer'
 import SlashMenu, { type SlashMenuItem } from './renderers/SlashMenu'
@@ -35,10 +36,21 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   const opts = { ...DEFAULTS, ...(args?.options || {}) }
 
   // Core state
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
+  const [nodes, setNodesBase, onNodesChangeBase] = useNodesState<Node>([])
   const nodesRef = useRef<Node[]>([])
   const nodeRefsMap = useRef<NodeRefsMap>({})
   const viewportRef = useRef({ x: 0, y: 0, zoom: 1 })
+  const storeApi = useStoreApi()
+
+  // Live resize state
+  const liveResize = useLiveResize()
+  const activeResizeContainerRef = useRef<string | null>(null)
+
+  // Ref to hold callback injection function (populated later)
+  const injectCallbacksRef = useRef<((nodes: Node[]) => Node[]) | null>(null)
+
+  // Ref to hold wrapped setNodes function (populated later)
+  const setNodesRef = useRef<((updater: Node[] | ((nodes: Node[]) => Node[])) => void) | null>(null)
 
   // Slash menu state
   const [slashMenu, setSlashMenu] = useState<null | { nodeId: string; position: { x: number; y: number } }>(null)
@@ -58,18 +70,21 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   // Height change handler
   const handleHeightChange = useCallback(
     (nodeId: string, newHeight: number) => {
-      setNodes((nds) => {
+      setNodesBase((nds) => {
         let updated = nds.map((n: any) =>
           n.id === nodeId ? { ...n, data: { ...n.data, height: newHeight } } : n
         )
         const changedNode = updated.find((n) => n.id === nodeId) as any
         if (changedNode?.data?.stackId) {
-          return applyLayout(changedNode.data.stackId, updated)
+          updated = applyLayout(changedNode.data.stackId, updated)
+        } else {
+          updated = syncContainers(updated)
         }
-        return syncContainers(updated)
+        // Inject callbacks if injection function is ready
+        return injectCallbacksRef.current ? injectCallbacksRef.current(updated) : updated
       })
     },
-    [setNodes, applyLayout, syncContainers]
+    [setNodesBase, applyLayout, syncContainers]
   )
 
   // Slash command handler
@@ -94,7 +109,20 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   // Create tabHandlers ref early
   const tabHandlers = useRef<{ handleTabNext?: (id: string) => void; handleTabPrev?: (id: string) => void }>({})
 
-  // Block operations
+  // Wrapper setNodes function that uses ref (for early usage before setNodes is defined)
+  const setNodesWrapper = useCallback(
+    (updater: Node[] | ((nodes: Node[]) => Node[])) => {
+      if (setNodesRef.current) {
+        setNodesRef.current(updater)
+      } else {
+        // Fallback: use setNodesBase directly
+        setNodesBase(updater)
+      }
+    },
+    [setNodesBase]
+  )
+
+  // Block operations (will use syncContainers directly, callbacks injected later)
   const blockOps = useBlockOperations(
     {
       nodeRefsMap,
@@ -108,7 +136,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       blockWidth: opts.blockWidth,
       headerHeight: opts.headerHeight,
     },
-    setNodes
+    setNodesWrapper
   )
 
   // Keyboard navigation
@@ -142,6 +170,97 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   const focus = useCallback((blockId: string) => {
     nodeRefsMap.current[blockId]?.current?.focus?.()
   }, [])
+
+  // Resize callbacks
+  const onContainerResizeStart = useCallback(
+    (containerId: string, side: 'left' | 'right') => {
+      const node = storeApi.getState().nodeLookup?.get(containerId)
+      const width =
+        (node as any)?.measured?.width ||
+        (nodesRef.current.find((n) => n.id === containerId) as any)?.data?.width ||
+        200
+
+      console.log('🟢 Resize start:', { containerId, side, width })
+      activeResizeContainerRef.current = containerId
+      liveResize.startResize(containerId, side, width)
+    },
+    [storeApi, liveResize]
+  )
+
+  const onContainerResizeEnd = useCallback(
+    (containerId: string) => {
+      const resizeState = liveResize.getState(containerId)
+      if (!resizeState) return
+
+      // Persist final width once
+      const node = storeApi.getState().nodeLookup?.get(containerId)
+      const finalWidth = (node as any)?.measured?.width || resizeState.startWidth
+
+      setNodesBase((nds) => {
+        const updated = nds.map((n: any) =>
+          n.id === containerId
+            ? {
+                ...n,
+                style: { ...n.style, width: finalWidth },
+                data: { ...n.data, width: finalWidth, manualWidth: finalWidth },
+              }
+            : n
+        )
+        // Inject callbacks if injection function is ready
+        return injectCallbacksRef.current ? injectCallbacksRef.current(updated) : updated
+      })
+
+      // Clear resize state
+      activeResizeContainerRef.current = null
+      liveResize.endResize(containerId)
+    },
+    [liveResize, storeApi, setNodesBase]
+  )
+
+  // Inject resize callbacks into container nodes
+  const injectContainerCallbacks = useCallback(
+    (nodes: Node[]) => {
+      return nodes.map((n: any) =>
+        n.type === 'stackContainer'
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                onResizeStart: onContainerResizeStart,
+                onResizeEnd: onContainerResizeEnd,
+              },
+            }
+          : n
+      )
+    },
+    [onContainerResizeStart, onContainerResizeEnd]
+  )
+
+  // Populate ref for use in early callbacks
+  injectCallbacksRef.current = injectContainerCallbacks
+
+  // Wrapped setNodes that automatically injects callbacks
+  const setNodes = useCallback(
+    (updater: Node[] | ((nodes: Node[]) => Node[])) => {
+      setNodesBase((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater
+        return injectContainerCallbacks(next)
+      })
+    },
+    [setNodesBase, injectContainerCallbacks]
+  )
+
+  // Populate ref for use in early callbacks
+  setNodesRef.current = setNodes
+
+  // Wrapped syncContainers that also injects callbacks
+  const syncContainersWithCallbacks = useCallback(
+    (nodes: Node[]) => {
+      const synced = syncContainers(nodes)
+      return injectContainerCallbacks(synced)
+    },
+    [syncContainers, injectContainerCallbacks]
+  )
 
   // Node types
   const nodeTypes: NodeTypes = useMemo(
@@ -212,6 +331,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       laidOut = syncContainers(wired) as Node[]
     }
 
+    // Inject resize callbacks into containers
+    laidOut = injectContainerCallbacks(laidOut)
+
     setNodes(laidOut)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args?.initialBlocks, args?.controlled])
@@ -226,13 +348,82 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     </>
   )
 
+  // Custom onNodesChange with position guard and dx calculation
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      setNodes((prev) => {
+        // 1) Apply RF changes first
+        let next = applyNodeChanges(changes, prev)
+
+        // 2) Handle dimension changes for containers during resize
+        for (const change of changes as any) {
+          if (change.type !== 'dimensions') continue
+
+          const container = next.find((n) => n.id === change.id)
+          if ((container as any)?.type !== 'stackContainer') continue
+
+          const resizeState = liveResize.getState(change.id)
+          if (!resizeState) continue
+
+          // Get current width from change or node lookup
+          const node = storeApi.getState().nodeLookup?.get(change.id)
+          const currentWidth = change.dimensions?.width || (node as any)?.measured?.width || resizeState.startWidth
+
+          // Calculate dx only for left-side resize
+          if (resizeState.side === 'left') {
+            const dx = resizeState.startWidth - currentWidth
+            console.log('📏 Left resize dx:', {
+              containerId: change.id,
+              dx,
+              startWidth: resizeState.startWidth,
+              currentWidth,
+            })
+            liveResize.updateDx(change.id, dx)
+          }
+
+          // Mirror container width to children (accounting for padding)
+          const childWidth = currentWidth - 8 // 4px left + 4px right padding
+          next = next.map((n: any) =>
+            n.parentId === change.id
+              ? {
+                  ...n,
+                  style: { ...n.style, width: childWidth },
+                  data: { ...n.data, width: childWidth },
+                }
+              : n
+          )
+        }
+
+        // 3) Position guard: ignore child position changes during active resize
+        const activeContainerId = activeResizeContainerRef.current
+        if (activeContainerId) {
+          for (const change of changes as any) {
+            if (change.type === 'position') {
+              const node = next.find((n) => n.id === change.id)
+              if ((node as any)?.parentId === activeContainerId) {
+                // Rollback this child's position by keeping the previous version
+                const prevNode = prev.find((n) => n.id === change.id)
+                if (prevNode) {
+                  next = next.map((n) => (n.id === change.id ? prevNode : n))
+                }
+              }
+            }
+          }
+        }
+
+        return next
+      })
+    },
+    [setNodes, liveResize, storeApi]
+  )
+
   return {
     nodes,
     nodeTypes,
     onNodesChange,
     onNodeDragStart: (evt, node) => drag.onNodeDragStart(evt, node, nodesRef),
     onNodeDrag: (evt, node) => drag.onNodeDrag(evt, node, nodesRef, setNodes, viewportRef),
-    onNodeDragStop: (evt, node) => drag.onNodeDragStop(evt, node, setNodes, updateBottomNodeFlags, syncContainers),
+    onNodeDragStop: (evt, node) => drag.onNodeDragStop(evt, node, setNodes, updateBottomNodeFlags, syncContainersWithCallbacks),
     onMove,
     focus,
     addBelow: blockOps.addBelow,

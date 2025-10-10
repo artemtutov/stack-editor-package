@@ -1,14 +1,26 @@
+import { NodeResizeControl, Position } from '@xyflow/react'
+
 type Props = {
-  data: { width?: number; height?: number; stackId?: string }
+  id: string
+  data: {
+    width?: number
+    height?: number
+    stackId?: string
+    onResizeStart?: (containerId: string, side: 'left' | 'right') => void
+    onResizeEnd?: (containerId: string) => void
+  }
   selected?: boolean
 }
 
-export default function StackContainer({ data, selected }: Props) {
+export default function StackContainer({ id, data, selected }: Props) {
+  const { onResizeStart, onResizeEnd } = data
+  console.log('🟡 StackContainer render:', { id, hasResizeStart: !!onResizeStart, hasResizeEnd: !!onResizeEnd })
+
   return (
     <div
       style={{
-        width: data.width || 200,
-        height: data.height || 100,
+        width: '100%',
+        height: '100%',
         background: 'white',
         border: selected ? '2px solid rgba(35, 131, 226, 1)' : '1px solid #d1d5db',
         borderRadius: 4,
@@ -19,6 +31,47 @@ export default function StackContainer({ data, selected }: Props) {
         cursor: 'grab',
       }}
     >
+      {/* Horizontal resize handles */}
+      <NodeResizeControl
+        position={Position.Left}
+        minWidth={200}
+        maxWidth={600}
+        onResizeStart={() => {
+          console.log('🔴 LEFT handle onResizeStart triggered')
+          onResizeStart?.(id, 'left')
+        }}
+        onResizeEnd={() => {
+          console.log('🔴 LEFT handle onResizeEnd triggered')
+          onResizeEnd?.(id)
+        }}
+        style={{
+          background: 'transparent',
+          width: '8px',
+          height: '100%',
+          cursor: 'ew-resize',
+          borderRadius: '4px',
+        }}
+      />
+      <NodeResizeControl
+        position={Position.Right}
+        minWidth={200}
+        maxWidth={600}
+        onResizeStart={() => {
+          console.log('🔴 RIGHT handle onResizeStart triggered')
+          onResizeStart?.(id, 'right')
+        }}
+        onResizeEnd={() => {
+          console.log('🔴 RIGHT handle onResizeEnd triggered')
+          onResizeEnd?.(id)
+        }}
+        style={{
+          background: 'transparent',
+          width: '8px',
+          height: '100%',
+          cursor: 'ew-resize',
+          borderRadius: '4px',
+        }}
+      />
       <div
         className="stack-drag-handle"
         style={{

@@ -49,5 +49,8 @@
     "wysiwyg"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "zustand": "^5.0.8"
+  }
 }

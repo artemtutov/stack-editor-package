@@ -143,6 +143,13 @@ export function syncStackContainers(
         containerY = minAbsY - headerHeight
       }
 
+      // Calculate container width early (preserve manual width if it exists)
+      const containerWidth =
+        (existingContainer as any)?.data?.manualWidth ||
+        (existingContainer as any)?.style?.width ||
+        blockWidth + 8
+      const childWidth = containerWidth - 8 // Account for padding
+
       // Convert blocks to relative positions if needed
       stackNodes.forEach((block: any) => {
         let relativeX: number, relativeY: number
@@ -161,7 +168,9 @@ export function syncStackContainers(
           ...block,
           position: { x: relativeX, y: relativeY },
           parentId: containerId,
-          className: 'in-stack'
+          className: 'in-stack',
+          style: { ...(block.style || {}), width: childWidth },
+          data: { ...(block.data || {}), parentContainerId: containerId },
         })
       })
 
@@ -175,13 +184,17 @@ export function syncStackContainers(
       const minY = Math.min(...relativeYs)
       const maxY = Math.max(...relativeYs.map((y: number, i: number) => y + heights[i]))
 
-      const containerWidth = blockWidth + 8
+      // containerWidth already calculated above
       const containerHeight = maxY - minY + headerHeight + 8
 
       newContainers.push({
         id: containerId,
         type: 'stackContainer',
         position: { x: containerX, y: containerY },
+        style: {
+          width: containerWidth,
+          height: containerHeight,
+        },
         data: { width: containerWidth, height: containerHeight, stackId },
         selectable: true,
         draggable: true,

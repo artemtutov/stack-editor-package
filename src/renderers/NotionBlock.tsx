@@ -1,17 +1,36 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { useStore } from '@xyflow/react'
 import type { BlockData } from '../types'
 import { useBlockKeyboard } from '../hooks/useBlockKeyboard'
+import { useLiveResize } from '../stores/useLiveResize'
 
 type Props = {
   id: string
   data: BlockData
   selected?: boolean
+  parentId?: string
 }
 
-function NotionBlock({ data, id, selected }: Props) {
+function NotionBlock({ data, id, selected, parentId }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const blockRef = useRef<HTMLDivElement | null>(null)
   const [isFocused, setIsFocused] = useState(false)
+
+  // Live resize transform (Option A)
+  const zoom = useStore((s) => s.transform[2])
+  const parentContainerId = (data as any).parentContainerId || parentId
+  const resizeState = useLiveResize((state) =>
+    parentContainerId ? state.resizing.get(parentContainerId) : undefined
+  )
+  const dxWorld = resizeState?.dx ?? 0
+  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+  const dxScreen = zoom ? dxWorld / zoom : dxWorld
+  const dxSnapped = Math.round(dxScreen * dpr) / dpr
+
+  // Debug log
+  if (resizeState && dxSnapped !== 0) {
+    console.log('🔵 Block transform:', { id, parentContainerId, dx: resizeState.dx, dxSnapped })
+  }
 
   // Use extracted keyboard handler
   const handleKeyDown = useBlockKeyboard(id, data, textareaRef, blockRef)
@@ -93,7 +112,7 @@ function NotionBlock({ data, id, selected }: Props) {
   }, [data.focusRef])
 
   return (
-    <div className="notion-block-wrapper">
+    <div className="notion-block-wrapper" style={{ width: '100%' }}>
       {/* Left Controls (+ button and drag handle) */}
       <div className="block-left-controls">
         <button
@@ -122,26 +141,35 @@ function NotionBlock({ data, id, selected }: Props) {
           data.stackId ? 'in-stack' : ''
         }`}
       >
-        <textarea
-          ref={textareaRef}
-          value={data.text}
-          onChange={(e) => {
-            const val = e.target.value
-            if (data.onChange) {
-              data.onChange(val)
-            } else {
-              try {
-                window.dispatchEvent(new CustomEvent('block:change', { detail: { id, text: val } }))
-              } catch {}
-            }
+        {/* Inner wrapper for live resize transform */}
+        <div
+          className="block-content-wrapper"
+          style={{
+            transform: dxSnapped !== 0 ? `translate3d(${dxSnapped}px, 0, 0)` : undefined,
+            transition: 'none',
           }}
-          onKeyDown={handleKeyDown}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          rows={1}
-          placeholder={data.placeholder || "Type '/' for commands"}
-          className="notion-block-textarea"
-        />
+        >
+          <textarea
+            ref={textareaRef}
+            value={data.text}
+            onChange={(e) => {
+              const val = e.target.value
+              if (data.onChange) {
+                data.onChange(val)
+              } else {
+                try {
+                  window.dispatchEvent(new CustomEvent('block:change', { detail: { id, text: val } }))
+                } catch {}
+              }
+            }}
+            onKeyDown={handleKeyDown}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            rows={1}
+            placeholder={data.placeholder || "Type '/' for commands"}
+            className="notion-block-textarea"
+          />
+        </div>
       </div>
     </div>
   )

@@ -234,9 +234,11 @@ export function useBlockOperations(
           return updatedNodes
         } else {
           // Adding to existing stack: use existing layout logic
+          const containerId = `container-${stackId}`
           const newNode: Node = {
             id: newId,
             type: 'block',
+            parentId: containerId,
             position: { x: 4, y: 0 },  // Relative position, layout will fix
             dragHandle: '.drag-handle',
             data: {
@@ -386,9 +388,11 @@ export function useBlockOperations(
             n.id === nodeId ? { ...n, data: { ...n.data, text: before, stackId } } : n
           )
 
+          const containerId = `container-${stackId}`
           const newNode: Node = {
             id: newId,
             type: 'block',
+            parentId: containerId,
             position: { x: 4, y: 0 },  // Relative position, layout will fix
             dragHandle: '.drag-handle',
             data: {

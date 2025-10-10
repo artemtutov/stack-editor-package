@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import type { BlockData } from '../types'
+import { useBlockKeyboard } from '../hooks/useBlockKeyboard'
 
 type Props = {
   id: string
@@ -11,6 +12,9 @@ function NotionBlock({ data, id, selected }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const blockRef = useRef<HTMLDivElement | null>(null)
   const [isFocused, setIsFocused] = useState(false)
+
+  // Use extracted keyboard handler
+  const handleKeyDown = useBlockKeyboard(id, data, textareaRef, blockRef)
 
   // Auto-resize textarea based on content
   useEffect(() => {
@@ -57,89 +61,6 @@ function NotionBlock({ data, id, selected }: Props) {
     resizeObserver.observe(block)
     return () => resizeObserver.disconnect()
   }, [id, data])
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === '/') {
-        e.preventDefault()
-        const rect = blockRef.current?.getBoundingClientRect() || null
-        if (data.onSlashCommand) {
-          data.onSlashCommand(id, rect)
-        } else {
-          try {
-            window.dispatchEvent(new CustomEvent('block:slash', { detail: { id, rect } }))
-          } catch {}
-        }
-        return
-      }
-
-      if (e.key === 'Backspace') {
-        const ta = textareaRef.current
-        const text = data.text ?? ''
-        if (ta && ta.selectionStart === 0 && ta.selectionEnd === 0) {
-          e.preventDefault()
-          if (text.length === 0) {
-            if (data.onDelete) {
-              data.onDelete(id)
-            } else {
-              try {
-                window.dispatchEvent(new CustomEvent('block:delete', { detail: { id } }))
-              } catch {}
-            }
-          } else {
-            if (data.onMergeUp) {
-              data.onMergeUp(id)
-            } else {
-              try {
-                window.dispatchEvent(new CustomEvent('block:mergeUp', { detail: { id } }))
-              } catch {}
-            }
-          }
-          return
-        }
-      }
-
-      if (e.key === 'Enter' && !e.shiftKey) {
-        const ta = textareaRef.current
-        if (ta) {
-          e.preventDefault()
-          const start = ta.selectionStart ?? 0
-          const end = ta.selectionEnd ?? start
-          const before = (data.text ?? '').slice(0, start)
-          const after = (data.text ?? '').slice(end)
-          if (data.onSplit) {
-            data.onSplit(id, before, after)
-          } else {
-            try {
-              window.dispatchEvent(new CustomEvent('block:split', { detail: { id, before, after } }))
-            } catch {}
-          }
-          return
-        }
-      }
-
-      if (e.key === 'Tab' && !e.shiftKey) {
-        e.preventDefault()
-        if (data.onTabNext) {
-          data.onTabNext(id)
-        } else {
-          try {
-            window.dispatchEvent(new CustomEvent('block:tabNext', { detail: { id } }))
-          } catch {}
-        }
-      } else if (e.key === 'Tab' && e.shiftKey) {
-        e.preventDefault()
-        if (data.onTabPrev) {
-          data.onTabPrev(id)
-        } else {
-          try {
-            window.dispatchEvent(new CustomEvent('block:tabPrev', { detail: { id } }))
-          } catch {}
-        }
-      }
-    },
-    [id, data]
-  )
 
   // Expose focus method
   useEffect(() => {

@@ -1,20 +1,22 @@
 type Props = {
   data: { width?: number; height?: number; stackId?: string }
+  selected?: boolean
 }
 
-export default function StackContainer({ data }: Props) {
+export default function StackContainer({ data, selected }: Props) {
   return (
     <div
       style={{
         width: data.width || 200,
         height: data.height || 100,
         background: 'white',
-        border: '1px solid #d1d5db',
+        border: selected ? '2px solid rgba(35, 131, 226, 1)' : '1px solid #d1d5db',
         borderRadius: 4,
         boxShadow: 'none',
         padding: '8px 4px',
-        pointerEvents: 'none',
-        transition: 'box-shadow 0.2s',
+        pointerEvents: 'auto',
+        transition: 'box-shadow 0.2s, border 0.2s',
+        cursor: 'grab',
       }}
     >
       <div

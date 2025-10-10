@@ -183,9 +183,8 @@ export function syncStackContainers(
         type: 'stackContainer',
         position: { x: containerX, y: containerY },
         data: { width: containerWidth, height: containerHeight, stackId },
-        selectable: false,
+        selectable: true,
         draggable: true,
-        dragHandle: '.stack-drag-handle',
         zIndex: -1,
       } as Node)
     } else {

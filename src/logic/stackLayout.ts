@@ -190,8 +190,24 @@ export function syncStackContainers(
     } else {
       // Single block: no parent needed
       stackNodes.forEach((block: any) => {
+        let absolutePosition = block.position
+
+        // If block had a parent, convert relative position to absolute
+        if (block.parentId) {
+          const parent = allNodes.find(n => n.id === block.parentId)
+          if (parent) {
+            absolutePosition = {
+              x: parent.position.x + block.position.x,
+              y: parent.position.y + block.position.y
+            }
+          }
+        }
+
         const { className, parentId, ...rest } = block
-        updatedBlocks.push(rest as Node)
+        updatedBlocks.push({
+          ...rest,
+          position: absolutePosition
+        } as Node)
       })
     }
   })
@@ -199,7 +215,24 @@ export function syncStackContainers(
   // Handle blocks without stackId
   blockNodes.forEach((node: any) => {
     if (!node.data?.stackId) {
-      updatedBlocks.push(node)
+      let absolutePosition = node.position
+
+      // Convert from relative to absolute if node has parent
+      if (node.parentId) {
+        const parent = allNodes.find(n => n.id === node.parentId)
+        if (parent) {
+          absolutePosition = {
+            x: parent.position.x + node.position.x,
+            y: parent.position.y + node.position.y
+          }
+        }
+      }
+
+      const { className, parentId, ...rest } = node
+      updatedBlocks.push({
+        ...rest,
+        position: absolutePosition
+      } as Node)
     }
   })
 

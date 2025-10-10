@@ -7,7 +7,7 @@ export default function App() {
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
       <ReactFlowProvider>
-        <StackEditor initialBlocks={[{ text: 'Start typing...' }]}>
+        <StackEditor initialBlocks={[{ text: '' }]}>
           {({ nodes, nodeTypes, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onMove }) => (
             <ReactFlow
               nodes={nodes}

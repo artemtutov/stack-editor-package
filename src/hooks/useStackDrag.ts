@@ -154,6 +154,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
               .filter((n: any) => n.data.stackId === oldStackId && n.type !== 'stackContainer')
 
             if (remaining.length > 0) {
+              updatedNodes = syncContainers(updatedNodes)
               updatedNodes = calculateStackLayout(oldStackId, updatedNodes, gap, headerHeight)
             }
           }
@@ -162,11 +163,13 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
           if (!isGroupDrag && newStackId) {
             updatedNodes = ensureInsertionOrder(newStackId, updatedNodes)
             updatedNodes = reorderStack(updatedNodes, node.id, newStackId, dropInfo.insertionIndex)
+            updatedNodes = syncContainers(updatedNodes)
             updatedNodes = calculateStackLayout(newStackId, updatedNodes, gap, headerHeight)
           }
 
           // Handle group drag - just recalculate layout
           if (isGroupDrag && oldStackId) {
+            updatedNodes = syncContainers(updatedNodes)
             updatedNodes = calculateStackLayout(oldStackId, updatedNodes, gap, headerHeight)
           }
 

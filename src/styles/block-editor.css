@@ -1,0 +1,329 @@
+/* Real Tiptap Block Editor Styles - Adapted from source app */
+
+/* Left controls container - positioned externally */
+.block-left-controls {
+  position: absolute;
+  left: -44px; /* Position controls outside the block (CONTROLS_WIDTH) */
+  top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  flex-shrink: 0;
+  z-index: 10; /* Ensure controls are above stack container */
+}
+
+.notion-block-wrapper:hover .block-left-controls {
+  opacity: 1;
+}
+
+/* Drag handle for blocks */
+.drag-handle {
+  align-items: center;
+  border-radius: 3px;
+  border: none;
+  cursor: grab;
+  display: flex;
+  height: 18px;
+  justify-content: center;
+  width: 18px;
+  background: transparent;
+  color: rgba(55, 53, 47, 0.35);
+  transition: all 100ms ease;
+  padding: 0;
+}
+
+.drag-handle:hover {
+  background-color: rgba(55, 53, 47, 0.08);
+  color: rgba(55, 53, 47, 0.6);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  background-color: rgba(55, 53, 47, 0.12);
+}
+
+/* Add button on LEFT side */
+.add-button {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  border: none;
+  background-color: transparent;
+  color: rgba(55, 53, 47, 0.35);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 100ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.add-button:hover {
+  background-color: rgba(55, 53, 47, 0.08);
+  color: rgba(55, 53, 47, 0.6);
+}
+
+/* Main block wrapper */
+.notion-block-wrapper {
+  position: relative;
+  width: 200px; /* Fixed width for block content only */
+  max-width: 200px;
+  min-width: 200px;
+}
+
+/* Block content */
+.notion-block {
+    position: relative;
+    padding: 2px 4px;
+    margin: 1px 0;
+    border-radius: 3px;
+    background: #ffffff;
+    transition: background-color 20ms ease, box-shadow 150ms ease;
+    min-height: 24px;
+    width: 100%; /* Take full width of wrapper */
+    border: 0; /* keep layout width identical whether selected or not */
+    line-height: 1; /* Override Tailwind's inherited line-height: 1.5 */
+}
+
+/* Hover state - very subtle */
+.notion-block-wrapper:hover .notion-block {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Focus state - Notion's signature blue glow (ONLY when focused) */
+.notion-block.focused {
+  background-color: #ffffff;
+  box-shadow: 0 0 0 1px rgba(35, 131, 226, 0.3);
+}
+
+/* Selected state (React Flow selection) - more subtle */
+/* Remove blue selection ring for block nodes that belong to a stack (solo-in-stack or multi) */
+.react-flow__node.has-stack[data-type="block"] .notion-block.selected {
+    background-color: #ffffff !important;
+    box-shadow: none !important;
+}
+
+/* Remove selection/focus ring for nodes inside stacks (2+ nodes) */
+.react-flow__node.in-stack.selectable.selected {
+  box-shadow: none !important;
+  outline: none !important;
+}
+.react-flow__node.in-stack:focus,
+.react-flow__node.in-stack:focus-visible {
+  box-shadow: none !important;
+  outline: none !important;
+}
+.react-flow__node.in-stack {
+  --xy-node-boxshadow-selected: none !important;
+  --xy-node-boxshadow-selected-default: none !important;
+}
+.react-flow__node.in-stack .notion-block.focused,
+.react-flow__node.in-stack .notion-block.selected {
+    box-shadow: none !important;
+    background-color: #ffffff !important;
+}
+
+/* Disable wrapper selection ring for block nodes that belong to a stack */
+.react-flow__node.has-stack[data-type="block"].selectable,
+.react-flow__node.has-stack[data-type="block"].selectable.selected {
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+}
+
+/* Kill XYFlow selection variables for block nodes */
+.react-flow__node.has-stack[data-type="block"] {
+    --xy-node-boxshadow-selected: none !important;
+    --xy-node-boxshadow-selected-default: none !important;
+}
+
+/* Stack nodes have no border radius (sharp corners) */
+.notion-block.in-stack {
+  border-radius: 0;
+}
+
+/* Selected state for stack nodes - white background, no border */
+.notion-block.selected.in-stack {
+  background-color: #ffffff !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* Override React Flow selection styling for stack nodes */
+.react-flow__node-default.selectable.selected:has(.notion-block.in-stack),
+.react-flow__node-default.selectable:focus:has(.notion-block.in-stack),
+.react-flow__node-default.selectable:focus-visible:has(.notion-block.in-stack) {
+  box-shadow: none !important;
+}
+
+/* Textarea - seamless integration */
+.notion-block textarea {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.5;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  color: rgb(55, 53, 47);
+  resize: none;
+  padding: 3px 6px;
+  overflow: hidden;
+}
+
+.notion-block textarea::placeholder {
+  color: rgba(55, 53, 47, 0.375);
+  font-weight: 400;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+/* Placeholder for empty blocks */
+.notion-block .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: rgba(55, 53, 47, 0.4);
+}
+
+/* Drop zone indicator */
+.drop-indicator {
+  position: absolute;
+  height: 2px;
+  background: rgb(35, 131, 226);
+  pointer-events: none;
+  z-index: 1000;
+  box-shadow: 0 0 4px rgba(35, 131, 226, 0.4);
+  animation: dropIndicatorPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes dropIndicatorPulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Slash command menu */
+.slash-menu {
+  position: absolute;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 8px 25px rgba(0, 0, 0, 0.15);
+  padding: 8px;
+  min-width: 280px;
+  max-height: 380px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.slash-menu-section {
+  margin-bottom: 8px;
+}
+
+.slash-menu-section:last-child {
+  margin-bottom: 0;
+}
+
+.slash-menu-section-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(55, 53, 47, 0.65);
+  padding: 8px 12px 4px 12px;
+  margin-bottom: 2px;
+}
+
+.slash-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+  font-size: 14px;
+  color: rgb(55, 53, 47);
+  margin: 1px 0;
+}
+
+.slash-menu-item:hover,
+.slash-menu-item.selected {
+  background-color: rgba(55, 53, 47, 0.08);
+}
+
+.slash-menu-item-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background-color: rgba(55, 53, 47, 0.05);
+  font-size: 16px;
+  font-weight: 500;
+  flex-shrink: 0;
+  color: rgba(55, 53, 47, 0.8);
+}
+
+.slash-menu-item-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.slash-menu-item-title {
+  font-weight: 500;
+  line-height: 1.3;
+  font-size: 14px;
+}
+
+.slash-menu-item-description {
+  font-size: 12px;
+  color: rgba(55, 53, 47, 0.65);
+  line-height: 1.3;
+}
+
+/* Stack visual styles */
+.stack-indicator {
+  border-left: 2px solid rgba(35, 131, 226, 0.2);
+  background-color: rgba(35, 131, 226, 0.02);
+}
+
+/* Smooth animations */
+@keyframes blockAppear {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notion-block.newly-created {
+  animation: blockAppear 200ms ease-out;
+}
+
+/* Notion color variables */
+:root {
+  --notion-text: rgb(55, 53, 47);
+  --notion-text-light: rgba(55, 53, 47, 0.6);
+  --notion-border: rgba(55, 53, 47, 0.09);
+  --notion-hover-bg: rgba(0, 0, 0, 0.024);
+  --notion-selected-bg: rgba(35, 131, 226, 0.08);
+  --notion-focus-ring: rgba(35, 131, 226, 0.57);
+  --notion-focus-shadow: rgba(35, 131, 226, 0.1);
+}

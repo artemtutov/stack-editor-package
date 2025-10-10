@@ -104,6 +104,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       handleHeightChange,
       handleSlashCommand,
       tabHandlersRef: tabHandlers,
+      gap: opts.gap,
+      blockWidth: opts.blockWidth,
+      headerHeight: opts.headerHeight,
     },
     setNodes
   )

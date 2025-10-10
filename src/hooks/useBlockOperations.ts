@@ -35,6 +35,9 @@ export type UseBlockOperationsOptions = {
   handleHeightChange: (nodeId: string, newHeight: number) => void
   handleSlashCommand: (nodeId: string, rectFromChild?: DOMRect | null) => void
   tabHandlersRef: React.MutableRefObject<{ handleTabNext?: (id: string) => void; handleTabPrev?: (id: string) => void }>
+  gap: number
+  blockWidth: number
+  headerHeight: number
 }
 
 export type UseBlockOperationsResult = {
@@ -60,6 +63,9 @@ export function useBlockOperations(
     handleHeightChange,
     handleSlashCommand,
     tabHandlersRef,
+    gap,
+    blockWidth,
+    headerHeight,
   } = options
 
   const handleDelete = useCallback(
@@ -140,72 +146,143 @@ export function useBlockOperations(
         const newId = nextBlockId()
         if (!nodeRefsMap.current[newId]) nodeRefsMap.current[newId] = { current: null }
 
+        const isCreatingNewStack = !currentNode.data.stackId
         const stackId = currentNode.data.stackId || currentNodeId
 
-        const newNode: Node = {
-          id: newId,
-          type: 'block',
-          position: { x: 4, y: 0 },  // Relative position, layout will fix
-          dragHandle: '.drag-handle',
-          data: {
-            text: '',
-            stackId,
-            isBottomNode: true,
-            height: 24,
-            insertionOrder: undefined,
-            focusRef: nodeRefsMap.current[newId],
-            // Wire up callbacks for the new block
-            onChange: (txt: string) =>
-              setNodes((inner) => inner.map((ni: any) => (ni.id === newId ? { ...ni, data: { ...ni.data, text: txt } } : ni))),
-            onAdd: () => addBelow(newId),
-            onHeightChange: handleHeightChange,
-            onTabNext: (id: string) => tabHandlersRef.current.handleTabNext?.(id),
-            onTabPrev: (id: string) => tabHandlersRef.current.handleTabPrev?.(id),
-            onSlashCommand: handleSlashCommand,
-            onDelete: handleDelete,
-            onSplit: handleSplit,
-            onMergeUp: handleMergeUp,
-          } as BlockData,
+        // Create callbacks for the new block
+        const newBlockCallbacks = {
+          onChange: (txt: string) =>
+            setNodes((inner) => inner.map((ni: any) => (ni.id === newId ? { ...ni, data: { ...ni.data, text: txt } } : ni))),
+          onAdd: () => addBelow(newId),
+          onHeightChange: handleHeightChange,
+          onTabNext: (id: string) => tabHandlersRef.current.handleTabNext?.(id),
+          onTabPrev: (id: string) => tabHandlersRef.current.handleTabPrev?.(id),
+          onSlashCommand: handleSlashCommand,
+          onDelete: handleDelete,
+          onSplit: handleSplit,
+          onMergeUp: handleMergeUp,
         }
 
-        let updatedNodes = [...nds, newNode]
+        if (isCreatingNewStack) {
+          // Creating a new stack: create container first with proper parent-child setup
+          const containerId = `container-${stackId}`
+          const currentHeight = currentNode.data.height || 24
+          const topPadding = 4
+          const sidePadding = 4
+          const bottomPadding = 4
 
-        if (!currentNode.data.stackId) {
-          updatedNodes = updatedNodes.map((n: any) =>
-            n.id === currentNodeId ? { ...n, data: { ...n.data, stackId } } : n
+          // Container position based on current block's absolute position
+          const containerX = currentNode.position.x - sidePadding
+          const containerY = currentNode.position.y - (headerHeight + topPadding)
+
+          // Calculate container height: header + top padding + both blocks + gap + bottom padding
+          const containerHeight = headerHeight + topPadding + currentHeight + gap + 24 + bottomPadding
+          const containerWidth = blockWidth + 8
+
+          const containerNode: Node = {
+            id: containerId,
+            type: 'stackContainer',
+            position: { x: containerX, y: containerY },
+            data: { width: containerWidth, height: containerHeight, stackId },
+            selectable: false,
+            draggable: true,
+            dragHandle: '.stack-drag-handle',
+            zIndex: -1,
+          } as Node
+
+          // Update current block with relative position and parentId
+          const updatedCurrentNode = {
+            ...currentNode,
+            parentId: containerId,
+            position: { x: sidePadding, y: headerHeight + topPadding },
+            className: 'in-stack',
+            data: {
+              ...currentNode.data,
+              stackId,
+              insertionOrder: 0,
+              isBottomNode: false,
+            },
+          }
+
+          // Create new block with relative position and parentId
+          const newNode: Node = {
+            id: newId,
+            type: 'block',
+            parentId: containerId,
+            position: { x: sidePadding, y: headerHeight + topPadding + currentHeight + gap },
+            dragHandle: '.drag-handle',
+            className: 'in-stack',
+            data: {
+              text: '',
+              stackId,
+              isBottomNode: true,
+              height: 24,
+              insertionOrder: 1,
+              focusRef: nodeRefsMap.current[newId],
+              ...newBlockCallbacks,
+            } as BlockData,
+          }
+
+          // Replace current node and add container and new node
+          const updatedNodes = [
+            containerNode,
+            ...nds.filter(n => n.id !== currentNodeId),
+            updatedCurrentNode,
+            newNode,
+          ]
+
+          setTimeout(() => nodeRefsMap.current[newId]?.current?.focus?.(), 50)
+          return updatedNodes
+        } else {
+          // Adding to existing stack: use existing layout logic
+          const newNode: Node = {
+            id: newId,
+            type: 'block',
+            position: { x: 4, y: 0 },  // Relative position, layout will fix
+            dragHandle: '.drag-handle',
+            data: {
+              text: '',
+              stackId,
+              isBottomNode: true,
+              height: 24,
+              insertionOrder: undefined,
+              focusRef: nodeRefsMap.current[newId],
+              ...newBlockCallbacks,
+            } as BlockData,
+          }
+
+          let updatedNodes = [...nds, newNode]
+          updatedNodes = ensureInsertionOrder(stackId, updatedNodes)
+
+          const blocks = updatedNodes.filter(
+            (n: any) => n.data?.stackId === stackId && n.type !== 'stackContainer'
           )
+          const ordered = [...blocks].sort(
+            (a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0)
+          )
+          const curIdx = ordered.findIndex((b: any) => b.id === currentNodeId)
+          const insertIndex = curIdx === -1 ? ordered.length : curIdx + 1
+          const others = ordered.filter((b: any) => b.id !== newId)
+          const reordered = [
+            ...others.slice(0, insertIndex),
+            updatedNodes.find((n) => n.id === newId) as any,
+            ...others.slice(insertIndex),
+          ]
+          const idToOrder = new Map(reordered.map((b: any, i: number) => [b.id, i]))
+          updatedNodes = updatedNodes.map((n: any) =>
+            n.data?.stackId === stackId && n.type !== 'stackContainer'
+              ? { ...n, data: { ...n.data, insertionOrder: idToOrder.get(n.id) } }
+              : n
+          )
+
+          const final = applyLayout(stackId, updatedNodes)
+          setTimeout(() => nodeRefsMap.current[newId]?.current?.focus?.(), 50)
+          return final
         }
-
-        updatedNodes = ensureInsertionOrder(stackId, updatedNodes)
-
-        const blocks = updatedNodes.filter(
-          (n: any) => n.data?.stackId === stackId && n.type !== 'stackContainer'
-        )
-        const ordered = [...blocks].sort(
-          (a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0)
-        )
-        const curIdx = ordered.findIndex((b: any) => b.id === currentNodeId)
-        const insertIndex = curIdx === -1 ? ordered.length : curIdx + 1
-        const others = ordered.filter((b: any) => b.id !== newId)
-        const reordered = [
-          ...others.slice(0, insertIndex),
-          updatedNodes.find((n) => n.id === newId) as any,
-          ...others.slice(insertIndex),
-        ]
-        const idToOrder = new Map(reordered.map((b: any, i: number) => [b.id, i]))
-        updatedNodes = updatedNodes.map((n: any) =>
-          n.data?.stackId === stackId && n.type !== 'stackContainer'
-            ? { ...n, data: { ...n.data, insertionOrder: idToOrder.get(n.id) } }
-            : n
-        )
-
-        const final = applyLayout(stackId, updatedNodes)
-        setTimeout(() => nodeRefsMap.current[newId]?.current?.focus?.(), 50)
-        return final
       })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setNodes, nodeRefsMap, applyLayout, handleHeightChange, handleSlashCommand, tabHandlersRef]
+    [setNodes, nodeRefsMap, applyLayout, handleHeightChange, handleSlashCommand, tabHandlersRef, gap, blockWidth, headerHeight]
   )
 
   const handleSplit = useCallback(
@@ -214,70 +291,149 @@ export function useBlockOperations(
         const node = nds.find((n) => n.id === nodeId) as any
         if (!node) return nds
 
-        const stackId = node.data?.stackId || nodeId
-
         const newId = nextBlockId()
         if (!nodeRefsMap.current[newId]) nodeRefsMap.current[newId] = { current: null }
 
-        const withText = nds.map((n: any) =>
-          n.id === nodeId ? { ...n, data: { ...n.data, text: before, stackId } } : n
-        )
+        const isCreatingNewStack = !node.data?.stackId
+        const stackId = node.data?.stackId || nodeId
 
-        const newNode: Node = {
-          id: newId,
-          type: 'block',
-          position: { x: 4, y: 0 },  // Relative position, layout will fix
-          dragHandle: '.drag-handle',
-          data: {
-            text: after,
-            stackId,
-            isBottomNode: true,
-            height: 24,
-            insertionOrder: undefined,
-            focusRef: nodeRefsMap.current[newId],
-            // Wire up callbacks for the new block
-            onChange: (txt: string) =>
-              setNodes((inner) => inner.map((ni: any) => (ni.id === newId ? { ...ni, data: { ...ni.data, text: txt } } : ni))),
-            onAdd: () => addBelow(newId),
-            onHeightChange: handleHeightChange,
-            onTabNext: (id: string) => tabHandlersRef.current.handleTabNext?.(id),
-            onTabPrev: (id: string) => tabHandlersRef.current.handleTabPrev?.(id),
-            onSlashCommand: handleSlashCommand,
-            onDelete: handleDelete,
-            onSplit: handleSplit,
-            onMergeUp: handleMergeUp,
-          } as BlockData,
+        // Create callbacks for the new block
+        const newBlockCallbacks = {
+          onChange: (txt: string) =>
+            setNodes((inner) => inner.map((ni: any) => (ni.id === newId ? { ...ni, data: { ...ni.data, text: txt } } : ni))),
+          onAdd: () => addBelow(newId),
+          onHeightChange: handleHeightChange,
+          onTabNext: (id: string) => tabHandlersRef.current.handleTabNext?.(id),
+          onTabPrev: (id: string) => tabHandlersRef.current.handleTabPrev?.(id),
+          onSlashCommand: handleSlashCommand,
+          onDelete: handleDelete,
+          onSplit: handleSplit,
+          onMergeUp: handleMergeUp,
         }
 
-        let updatedNodes = [...withText, newNode]
-        updatedNodes = ensureInsertionOrder(stackId, updatedNodes)
+        if (isCreatingNewStack) {
+          // Creating a new stack: create container first with proper parent-child setup
+          const containerId = `container-${stackId}`
+          const currentHeight = node.data.height || 24
+          const topPadding = 4
+          const sidePadding = 4
+          const bottomPadding = 4
 
-        const blocks = updatedNodes.filter(
-          (n: any) => n.data?.stackId === stackId && n.type !== 'stackContainer'
-        )
-        const ordered = [...blocks].sort((a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0))
-        const curIdx = ordered.findIndex((b: any) => b.id === nodeId)
-        const insertIndex = curIdx === -1 ? ordered.length : curIdx + 1
-        const others = ordered.filter((b: any) => b.id !== newId)
-        const reordered = [
-          ...others.slice(0, insertIndex),
-          updatedNodes.find((n) => n.id === newId) as any,
-          ...others.slice(insertIndex),
-        ]
-        const idToOrder = new Map(reordered.map((b: any, i: number) => [b.id, i]))
-        updatedNodes = updatedNodes.map((n: any) =>
-          n.data?.stackId === stackId && n.type !== 'stackContainer'
-            ? { ...n, data: { ...n.data, insertionOrder: idToOrder.get(n.id) } }
-            : n
-        )
+          // Container position based on current block's absolute position
+          const containerX = node.position.x - sidePadding
+          const containerY = node.position.y - (headerHeight + topPadding)
 
-        const final = applyLayout(stackId, updatedNodes)
-        setTimeout(() => nodeRefsMap.current[newId]?.current?.focus?.(), 50)
-        return final
+          // Calculate container height: header + top padding + both blocks + gap + bottom padding
+          const containerHeight = headerHeight + topPadding + currentHeight + gap + 24 + bottomPadding
+          const containerWidth = blockWidth + 8
+
+          const containerNode: Node = {
+            id: containerId,
+            type: 'stackContainer',
+            position: { x: containerX, y: containerY },
+            data: { width: containerWidth, height: containerHeight, stackId },
+            selectable: false,
+            draggable: true,
+            dragHandle: '.stack-drag-handle',
+            zIndex: -1,
+          } as Node
+
+          // Update current block with relative position and parentId
+          const updatedCurrentNode = {
+            ...node,
+            parentId: containerId,
+            position: { x: sidePadding, y: headerHeight + topPadding },
+            className: 'in-stack',
+            data: {
+              ...node.data,
+              text: before,
+              stackId,
+              insertionOrder: 0,
+              isBottomNode: false,
+            },
+          }
+
+          // Create new block with relative position and parentId
+          const newNode: Node = {
+            id: newId,
+            type: 'block',
+            parentId: containerId,
+            position: { x: sidePadding, y: headerHeight + topPadding + currentHeight + gap },
+            dragHandle: '.drag-handle',
+            className: 'in-stack',
+            data: {
+              text: after,
+              stackId,
+              isBottomNode: true,
+              height: 24,
+              insertionOrder: 1,
+              focusRef: nodeRefsMap.current[newId],
+              ...newBlockCallbacks,
+            } as BlockData,
+          }
+
+          // Replace current node and add container and new node
+          const updatedNodes = [
+            containerNode,
+            ...nds.filter(n => n.id !== nodeId),
+            updatedCurrentNode,
+            newNode,
+          ]
+
+          setTimeout(() => nodeRefsMap.current[newId]?.current?.focus?.(), 50)
+          return updatedNodes
+        } else {
+          // Splitting in existing stack: use existing layout logic
+          const withText = nds.map((n: any) =>
+            n.id === nodeId ? { ...n, data: { ...n.data, text: before, stackId } } : n
+          )
+
+          const newNode: Node = {
+            id: newId,
+            type: 'block',
+            position: { x: 4, y: 0 },  // Relative position, layout will fix
+            dragHandle: '.drag-handle',
+            data: {
+              text: after,
+              stackId,
+              isBottomNode: true,
+              height: 24,
+              insertionOrder: undefined,
+              focusRef: nodeRefsMap.current[newId],
+              ...newBlockCallbacks,
+            } as BlockData,
+          }
+
+          let updatedNodes = [...withText, newNode]
+          updatedNodes = ensureInsertionOrder(stackId, updatedNodes)
+
+          const blocks = updatedNodes.filter(
+            (n: any) => n.data?.stackId === stackId && n.type !== 'stackContainer'
+          )
+          const ordered = [...blocks].sort((a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0))
+          const curIdx = ordered.findIndex((b: any) => b.id === nodeId)
+          const insertIndex = curIdx === -1 ? ordered.length : curIdx + 1
+          const others = ordered.filter((b: any) => b.id !== newId)
+          const reordered = [
+            ...others.slice(0, insertIndex),
+            updatedNodes.find((n) => n.id === newId) as any,
+            ...others.slice(insertIndex),
+          ]
+          const idToOrder = new Map(reordered.map((b: any, i: number) => [b.id, i]))
+          updatedNodes = updatedNodes.map((n: any) =>
+            n.data?.stackId === stackId && n.type !== 'stackContainer'
+              ? { ...n, data: { ...n.data, insertionOrder: idToOrder.get(n.id) } }
+              : n
+          )
+
+          const final = applyLayout(stackId, updatedNodes)
+          setTimeout(() => nodeRefsMap.current[newId]?.current?.focus?.(), 50)
+          return final
+        }
       })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setNodes, nodeRefsMap, applyLayout, handleHeightChange, handleSlashCommand, tabHandlersRef, addBelow]
+    [setNodes, nodeRefsMap, applyLayout, handleHeightChange, handleSlashCommand, tabHandlersRef, addBelow, gap, blockWidth, headerHeight]
   )
 
   const createBlockCallbacks = useCallback(

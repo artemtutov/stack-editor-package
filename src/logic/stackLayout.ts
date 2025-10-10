@@ -67,7 +67,7 @@ export function calculateStackLayout(
 ): Node[] {
   let updated = ensureInsertionOrder(stackId, allNodes)
   const blocks = getStackBlocks(stackId, updated)
-  if (blocks.length === 0) return updated
+  if (blocks.length <= 1) return updated  // Skip layout for single or no blocks
 
   const sorted = [...blocks].sort(
     (a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0)
@@ -206,7 +206,11 @@ export function syncStackContainers(
         const { className, parentId, ...rest } = block
         updatedBlocks.push({
           ...rest,
-          position: absolutePosition
+          position: absolutePosition,
+          data: {
+            ...rest.data,
+            stackId: undefined  // Remove stackId for single blocks
+          }
         } as Node)
       })
     }

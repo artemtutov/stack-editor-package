@@ -36,6 +36,7 @@ export type UseBlockOperationsOptions = {
   syncContainers: (nodes: Node[]) => Node[]
   handleHeightChange: (nodeId: string, newHeight: number) => void
   handleSlashCommand: (nodeId: string, rectFromChild?: DOMRect | null) => void
+  tabHandlersRef: React.MutableRefObject<{ handleTabNext?: (id: string) => void; handleTabPrev?: (id: string) => void }>
 }
 
 export type UseBlockOperationsResult = {
@@ -61,6 +62,7 @@ export function useBlockOperations(
     syncContainers,
     handleHeightChange,
     handleSlashCommand,
+    tabHandlersRef,
   } = options
 
   const handleDelete = useCallback(
@@ -158,6 +160,17 @@ export function useBlockOperations(
             height: 24,
             insertionOrder: undefined,
             focusRef: nodeRefsMap.current[newId],
+            // Wire up callbacks for the new block
+            onChange: (txt: string) =>
+              setNodes((inner) => inner.map((ni: any) => (ni.id === newId ? { ...ni, data: { ...ni.data, text: txt } } : ni))),
+            onAdd: () => addBelow(newId),
+            onHeightChange: handleHeightChange,
+            onTabNext: (id: string) => tabHandlersRef.current.handleTabNext?.(id),
+            onTabPrev: (id: string) => tabHandlersRef.current.handleTabPrev?.(id),
+            onSlashCommand: handleSlashCommand,
+            onDelete: handleDelete,
+            onSplit: handleSplit,
+            onMergeUp: handleMergeUp,
           } as BlockData,
         }
 
@@ -197,7 +210,7 @@ export function useBlockOperations(
         return final
       })
     },
-    [setNodes, stackAnchors, nodeRefsMap, applyLayout]
+    [setNodes, stackAnchors, nodeRefsMap, applyLayout, handleHeightChange, handleSlashCommand, tabHandlersRef]
   )
 
   const handleSplit = useCallback(
@@ -230,6 +243,17 @@ export function useBlockOperations(
             height: 24,
             insertionOrder: undefined,
             focusRef: nodeRefsMap.current[newId],
+            // Wire up callbacks for the new block
+            onChange: (txt: string) =>
+              setNodes((inner) => inner.map((ni: any) => (ni.id === newId ? { ...ni, data: { ...ni.data, text: txt } } : ni))),
+            onAdd: () => addBelow(newId),
+            onHeightChange: handleHeightChange,
+            onTabNext: (id: string) => tabHandlersRef.current.handleTabNext?.(id),
+            onTabPrev: (id: string) => tabHandlersRef.current.handleTabPrev?.(id),
+            onSlashCommand: handleSlashCommand,
+            onDelete: handleDelete,
+            onSplit: handleSplit,
+            onMergeUp: handleMergeUp,
           } as BlockData,
         }
 
@@ -260,7 +284,7 @@ export function useBlockOperations(
         return final
       })
     },
-    [setNodes, stackAnchors, nodeRefsMap, applyLayout]
+    [setNodes, stackAnchors, nodeRefsMap, applyLayout, handleHeightChange, handleSlashCommand, tabHandlersRef]
   )
 
   const createBlockCallbacks = useCallback(

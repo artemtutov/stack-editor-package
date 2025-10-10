@@ -91,6 +91,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     setSlashMenu(null)
   }, [])
 
+  // Create tabHandlers ref early
+  const tabHandlers = useRef<{ handleTabNext?: (id: string) => void; handleTabPrev?: (id: string) => void }>({})
+
   // Block operations
   const blockOps = useBlockOperations(
     {
@@ -101,6 +104,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       syncContainers,
       handleHeightChange,
       handleSlashCommand,
+      tabHandlersRef: tabHandlers,
     },
     setNodes
   )
@@ -112,7 +116,11 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     addBelow: blockOps.addBelow,
   })
 
-  const tabHandlers = useTabHandlers(keyboardNav)
+  // Wire up tab handlers
+  useEffect(() => {
+    tabHandlers.current.handleTabNext = keyboardNav.handleTabNext
+    tabHandlers.current.handleTabPrev = keyboardNav.handleTabPrev
+  }, [keyboardNav.handleTabNext, keyboardNav.handleTabPrev])
 
   // Drag and drop
   const drag = useStackDrag({
@@ -203,18 +211,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     }
 
     setNodes(laidOut)
-  }, [
-    args?.initialBlocks,
-    args?.controlled,
-    setNodes,
-    blockOps,
-    handleHeightChange,
-    handleSlashCommand,
-    applyLayout,
-    syncContainers,
-    stackAnchors,
-    tabHandlers,
-  ])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [args?.initialBlocks, args?.controlled])
 
   // Overlays
   const overlays = (

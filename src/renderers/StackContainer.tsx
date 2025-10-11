@@ -58,7 +58,7 @@ export default function StackContainer({ id, data, selected }: Props) {
           display: 'flex',
           alignItems: 'center',
           gap: 6,
-          opacity: 0.7,
+          opacity: 1,
           pointerEvents: 'auto',
           cursor: 'grab',
           padding: '8px',
@@ -68,16 +68,6 @@ export default function StackContainer({ id, data, selected }: Props) {
         }}
         role="button"
         tabIndex={-1}
-        onMouseEnter={(e) => {
-          const el = e.currentTarget as HTMLElement
-          el.style.opacity = '1'
-          el.style.backgroundColor = 'rgba(0,0,0,0.05)'
-        }}
-        onMouseLeave={(e) => {
-          const el = e.currentTarget as HTMLElement
-          el.style.opacity = '0.7'
-          el.style.backgroundColor = 'transparent'
-        }}
         onMouseDown={(e) => {
           // prevent text selection but let ReactFlow detect drag handle
           e.preventDefault()

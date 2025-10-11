@@ -171,6 +171,7 @@
   padding: 4px 2px 0 4px;
   overflow: hidden;
   min-height: 24px;
+  box-sizing: border-box;
 }
 
 .notion-block textarea::placeholder {

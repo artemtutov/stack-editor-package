@@ -265,9 +265,13 @@ export function useBlockOperations(
           const ordered = [...blocks].sort(
             (a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0)
           )
+          // Find current block in the ordered array (with newBlock)
           const curIdx = ordered.findIndex((b: any) => b.id === currentNodeId)
-          const insertIndex = curIdx === -1 ? ordered.length : curIdx + 1
+          // Filter out newBlock to get the others
           const others = ordered.filter((b: any) => b.id !== newId)
+          // Find current block in others array (without newBlock) to get correct insert index
+          const curIdxInOthers = others.findIndex((b: any) => b.id === currentNodeId)
+          const insertIndex = curIdxInOthers === -1 ? others.length : curIdxInOthers + 1
           const reordered = [
             ...others.slice(0, insertIndex),
             updatedNodes.find((n) => n.id === newId) as any,
@@ -419,9 +423,13 @@ export function useBlockOperations(
             (n: any) => n.data?.stackId === stackId && n.type !== 'stackContainer'
           )
           const ordered = [...blocks].sort((a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0))
+          // Find current block in the ordered array (with newBlock)
           const curIdx = ordered.findIndex((b: any) => b.id === nodeId)
-          const insertIndex = curIdx === -1 ? ordered.length : curIdx + 1
+          // Filter out newBlock to get the others
           const others = ordered.filter((b: any) => b.id !== newId)
+          // Find current block in others array (without newBlock) to get correct insert index
+          const curIdxInOthers = others.findIndex((b: any) => b.id === nodeId)
+          const insertIndex = curIdxInOthers === -1 ? others.length : curIdxInOthers + 1
           const reordered = [
             ...others.slice(0, insertIndex),
             updatedNodes.find((n) => n.id === newId) as any,

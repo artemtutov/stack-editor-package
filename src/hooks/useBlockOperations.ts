@@ -195,6 +195,7 @@ export function useBlockOperations(
             data: { width: containerWidth, height: containerHeight, stackId },
             selectable: true,
             draggable: true,
+            resizable: false,
             zIndex: -1,
           } as Node
 
@@ -352,6 +353,7 @@ export function useBlockOperations(
             data: { width: containerWidth, height: containerHeight, stackId },
             selectable: true,
             draggable: true,
+            resizable: false,
             zIndex: -1,
           } as Node
 

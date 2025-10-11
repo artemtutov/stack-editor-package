@@ -325,3 +325,21 @@
   --notion-focus-ring: rgba(35, 131, 226, 0.57);
   --notion-focus-shadow: rgba(35, 131, 226, 0.1);
 }
+
+/* Stack container resize handles - make them thicker and visible */
+.react-flow__resize-control.line.left,
+.react-flow__resize-control.line.right {
+  width: 8px !important;
+  background-color: orange !important;
+  border: none !important;
+  border-left-width: 0 !important;
+  border-right-width: 0 !important;
+  border-radius: 4px;
+}
+
+/* Right handle needs special positioning to align with right edge */
+.react-flow__resize-control.line.right {
+  left: auto !important;
+  right: -12px !important;
+  transform: none !important;
+}

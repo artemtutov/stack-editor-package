@@ -200,6 +200,7 @@ export function syncStackContainers(
         data: { width: containerWidth, height: containerHeight, stackId },
         selectable: true,
         draggable: true,
+        resizable: false,
         zIndex: -1,
       } as Node)
     } else {

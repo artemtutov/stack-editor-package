@@ -25,7 +25,7 @@ export default function StackContainer({ id, data, selected }: Props) {
         border: selected ? '2px solid rgba(35, 131, 226, 1)' : '1px solid #d1d5db',
         borderRadius: 4,
         boxShadow: 'none',
-        padding: '8px 4px',
+        padding: '8px 4px 0',
         pointerEvents: 'auto',
         transition: 'box-shadow 0.2s, border 0.2s',
         cursor: 'grab',
@@ -34,33 +34,23 @@ export default function StackContainer({ id, data, selected }: Props) {
       {/* Horizontal resize handles */}
       <NodeResizeControl
         position={Position.Left}
+        variant="line"
+        color="orange"
         minWidth={200}
         maxWidth={600}
         onResizeStart={() => onResizeStart?.(id, 'left')}
         onResize={(_, params) => onResize?.(id, params.width)}
         onResizeEnd={() => onResizeEnd?.(id)}
-        style={{
-          background: 'transparent',
-          width: '8px',
-          height: '100%',
-          cursor: 'ew-resize',
-          borderRadius: '4px',
-        }}
       />
       <NodeResizeControl
         position={Position.Right}
+        variant="line"
+        color="orange"
         minWidth={200}
         maxWidth={600}
         onResizeStart={() => onResizeStart?.(id, 'right')}
         onResize={(_, params) => onResize?.(id, params.width)}
         onResizeEnd={() => onResizeEnd?.(id)}
-        style={{
-          background: 'transparent',
-          width: '8px',
-          height: '100%',
-          cursor: 'ew-resize',
-          borderRadius: '4px',
-        }}
       />
       <div
         className="stack-drag-handle"

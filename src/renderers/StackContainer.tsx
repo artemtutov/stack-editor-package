@@ -1,4 +1,4 @@
-import { NodeResizeControl, Position } from '@xyflow/react'
+import { NodeResizeControl, Position, ResizeControlVariant } from '@xyflow/react'
 
 type Props = {
   id: string
@@ -34,7 +34,7 @@ export default function StackContainer({ id, data, selected }: Props) {
       {/* Horizontal resize handles */}
       <NodeResizeControl
         position={Position.Left}
-        variant="line"
+        variant={ResizeControlVariant.Line}
         color="orange"
         minWidth={200}
         maxWidth={600}
@@ -44,7 +44,7 @@ export default function StackContainer({ id, data, selected }: Props) {
       />
       <NodeResizeControl
         position={Position.Right}
-        variant="line"
+        variant={ResizeControlVariant.Line}
         color="orange"
         minWidth={200}
         maxWidth={600}

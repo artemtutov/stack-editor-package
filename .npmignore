@@ -1,0 +1,54 @@
+# Development files
+demo/
+src/
+node_modules/
+
+# Configuration files
+tsconfig.json
+vite.config.ts
+.gitignore
+.npmignore
+
+# IDE and tooling
+.claude/
+.vscode/
+.idea/
+
+# Git
+.git/
+.github/
+
+# Documentation (except README)
+INTEGRATION.md
+QUICKSTART.md
+RESIZING.md
+
+# Build artifacts
+dist-demo/
+.vite/
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+
+# Development dependencies
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Test files (if added later)
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+__tests__/
+coverage/
+
+# Only publish:
+# - dist/
+# - package.json
+# - README.md
+# - LICENSE

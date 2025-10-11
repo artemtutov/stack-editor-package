@@ -17,8 +17,8 @@ export type BlockKeyboardHandlers = {
 export function useBlockKeyboard(
   id: string,
   data: BlockData,
-  textareaRef: React.RefObject<HTMLTextAreaElement>,
-  blockRef: React.RefObject<HTMLDivElement>
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>,
+  blockRef: React.RefObject<HTMLDivElement | null>
 ) {
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

@@ -179,10 +179,11 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         (node as any)?.measured?.width ||
         (nodesRef.current.find((n) => n.id === containerId) as any)?.data?.width ||
         200
+      const x = (node as any)?.internals?.positionAbsolute?.x || 0
 
-      console.log('🟢 Resize start:', { containerId, side, width })
+      console.log('🟢 Resize start:', { containerId, side, width, x })
       activeResizeContainerRef.current = containerId
-      liveResize.startResize(containerId, side, width)
+      liveResize.startResize(containerId, side, width, x)
     },
     [storeApi, liveResize]
   )
@@ -368,18 +369,6 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
           // Get current width from change or node lookup
           const node = storeApi.getState().nodeLookup?.get(change.id)
           const currentWidth = change.dimensions?.width || (node as any)?.measured?.width || resizeState.startWidth
-
-          // Calculate dx only for left-side resize
-          if (resizeState.side === 'left') {
-            const dx = resizeState.startWidth - currentWidth
-            console.log('📏 Left resize dx:', {
-              containerId: change.id,
-              dx,
-              startWidth: resizeState.startWidth,
-              currentWidth,
-            })
-            liveResize.updateDx(change.id, dx)
-          }
 
           // Mirror container width to children (accounting for padding)
           const childWidth = currentWidth - 8 // 4px left + 4px right padding

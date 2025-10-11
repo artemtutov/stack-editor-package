@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { useStore } from '@xyflow/react'
 import type { BlockData } from '../types'
 import { useBlockKeyboard } from '../hooks/useBlockKeyboard'
 import { useLiveResize } from '../stores/useLiveResize'
@@ -17,15 +16,13 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
   const [isFocused, setIsFocused] = useState(false)
 
   // Live resize transform (Option A)
-  const zoom = useStore((s) => s.transform[2])
   const parentContainerId = (data as any).parentContainerId || parentId
   const resizeState = useLiveResize((state) =>
     parentContainerId ? state.resizing.get(parentContainerId) : undefined
   )
-  const dxWorld = resizeState?.dx ?? 0
+  const dx = resizeState?.dx ?? 0
   const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
-  const dxScreen = zoom ? dxWorld / zoom : dxWorld
-  const dxSnapped = Math.round(dxScreen * dpr) / dpr
+  const dxSnapped = Math.round(dx * dpr) / dpr
 
   // Debug log
   if (resizeState && dxSnapped !== 0) {

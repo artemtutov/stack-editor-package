@@ -3,6 +3,7 @@ import { create } from 'zustand'
 type ResizeState = {
   side: 'left' | 'right'
   startWidth: number
+  startX: number
   dx: number
 }
 
@@ -10,7 +11,7 @@ type LiveResizeStore = {
   // containerId -> resize state
   resizing: Map<string, ResizeState>
 
-  startResize: (containerId: string, side: 'left' | 'right', startWidth: number) => void
+  startResize: (containerId: string, side: 'left' | 'right', startWidth: number, startX: number) => void
   updateDx: (containerId: string, dx: number) => void
   endResize: (containerId: string) => void
   getState: (containerId: string) => ResizeState | undefined
@@ -19,10 +20,10 @@ type LiveResizeStore = {
 export const useLiveResize = create<LiveResizeStore>((set, get) => ({
   resizing: new Map(),
 
-  startResize: (containerId, side, startWidth) => {
+  startResize: (containerId, side, startWidth, startX) => {
     set((state) => {
       const newMap = new Map(state.resizing)
-      newMap.set(containerId, { side, startWidth, dx: 0 })
+      newMap.set(containerId, { side, startWidth, startX, dx: 0 })
       return { resizing: newMap }
     })
   },

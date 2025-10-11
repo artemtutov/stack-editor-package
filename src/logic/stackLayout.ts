@@ -1,4 +1,5 @@
 import type { Node } from '@xyflow/react'
+import { getAbsolutePosition } from './dragAndDrop'
 
 /**
  * Get all block nodes belonging to a specific stack
@@ -151,17 +152,31 @@ export function syncStackContainers(
 
       // Convert blocks to relative positions if needed
       stackNodes.forEach((block: any) => {
+        console.log('🔍 Block conversion:', {
+          blockId: block.id,
+          stackId: block.data?.stackId,
+          parentId: block.parentId,
+          position: block.position,
+          containerX,
+          containerY,
+          parentIdMatchesStackId: block.parentId === stackId,
+        })
+
         let relativeX: number, relativeY: number
 
         if (block.parentId === stackId) {
-          // Already relative
+          // Already relative to this container
           relativeX = block.position.x
           relativeY = block.position.y
         } else {
-          // Convert from absolute to relative
-          relativeX = block.position.x - containerX
-          relativeY = block.position.y - containerY
+          // Convert to absolute first (handles both no-parent and different-parent cases)
+          const absolutePos = getAbsolutePosition(block, allNodes)
+          // Then convert to relative for the new container
+          relativeX = absolutePos.x - containerX
+          relativeY = absolutePos.y - containerY
         }
+
+        console.log('  → Converted to relative:', { relativeX, relativeY })
 
         updatedBlocks.push({
           ...block,

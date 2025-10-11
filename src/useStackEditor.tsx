@@ -109,8 +109,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     setSlashMenu(null)
   }, [])
 
-  // Create tabHandlers ref early
-  const tabHandlers = useRef<{ handleTabNext?: (id: string) => void; handleTabPrev?: (id: string) => void }>({})
+  // Create keyboard navigation handlers ref early
+  const tabHandlers = useRef<{ handleTabNext?: (id: string) => void; handleTabPrev?: (id: string) => void; handleArrowUp?: (id: string) => void; handleArrowDown?: (id: string) => void }>({})
 
   // Wrapper setNodes function that uses ref (for early usage before setNodes is defined)
   const setNodesWrapper = useCallback(
@@ -149,11 +149,13 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     addBelow: blockOps.addBelow,
   })
 
-  // Wire up tab handlers
+  // Wire up keyboard navigation handlers
   useEffect(() => {
     tabHandlers.current.handleTabNext = keyboardNav.handleTabNext
     tabHandlers.current.handleTabPrev = keyboardNav.handleTabPrev
-  }, [keyboardNav.handleTabNext, keyboardNav.handleTabPrev])
+    tabHandlers.current.handleArrowUp = keyboardNav.handleArrowUp
+    tabHandlers.current.handleArrowDown = keyboardNav.handleArrowDown
+  }, [keyboardNav.handleTabNext, keyboardNav.handleTabPrev, keyboardNav.handleArrowUp, keyboardNav.handleArrowDown])
 
   // Drag and drop
   const drag = useStackDrag({
@@ -341,6 +343,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         onHeightChange: handleHeightChange,
         onTabNext: (id: string) => tabHandlers.current.handleTabNext?.(id),
         onTabPrev: (id: string) => tabHandlers.current.handleTabPrev?.(id),
+        onArrowUp: (id: string) => tabHandlers.current.handleArrowUp?.(id),
+        onArrowDown: (id: string) => tabHandlers.current.handleArrowDown?.(id),
         onSlashCommand: handleSlashCommand,
         onDelete: blockOps.handleDelete,
         onSplit: blockOps.handleSplit,

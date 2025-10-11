@@ -47,6 +47,18 @@ export function getPreviousBlockByY(nodeId: string, allNodes: Node[]): Node | nu
 }
 
 /**
+ * Get the next block by Y position (fallback when no stack)
+ */
+export function getNextBlockByY(nodeId: string, allNodes: Node[]): Node | null {
+  const allBlocks = allNodes
+    .filter((n: any) => n.type !== 'stackContainer')
+    .sort((a: any, b: any) => a.position.y - b.position.y)
+
+  const idx = allBlocks.findIndex((n) => n.id === nodeId)
+  return idx >= 0 && idx < allBlocks.length - 1 ? allBlocks[idx + 1] : null
+}
+
+/**
  * Get the next block in a stack by insertion order
  */
 export function getNextBlockInStack(nodeId: string, allNodes: Node[]): Node | null {

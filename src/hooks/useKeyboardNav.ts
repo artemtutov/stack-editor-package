@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { Node } from '@xyflow/react'
-import { getNextBlockInStack, isLastInStack } from '../logic/stackState'
+import {
+  getNextBlockInStack,
+  getPreviousBlockInStack,
+  getPreviousBlockByY,
+  getNextBlockByY,
+  isLastInStack
+} from '../logic/stackState'
 import type { NodeRefsMap } from './useBlockOperations'
 
 export type UseKeyboardNavOptions = {
@@ -12,6 +18,8 @@ export type UseKeyboardNavOptions = {
 export type UseKeyboardNavResult = {
   handleTabNext: (currentId: string) => void
   handleTabPrev: (currentId: string) => void
+  handleArrowUp: (currentId: string) => void
+  handleArrowDown: (currentId: string) => void
 }
 
 /**
@@ -70,9 +78,47 @@ export function useKeyboardNav(options: UseKeyboardNavOptions): UseKeyboardNavRe
     [nodesRef, nodeRefsMap]
   )
 
+  const handleArrowUp = useCallback(
+    (currentId: string) => {
+      const all = nodesRef.current as any
+      const node = all.find((n: any) => n.id === currentId)
+      if (!node) return
+
+      // Try previous block in stack first
+      let prev = getPreviousBlockInStack(currentId, all)
+      // Fallback to previous by Y position
+      if (!prev) prev = getPreviousBlockByY(currentId, all)
+
+      if (prev) {
+        setTimeout(() => nodeRefsMap.current[prev.id]?.current?.focus?.(), 0)
+      }
+    },
+    [nodesRef, nodeRefsMap]
+  )
+
+  const handleArrowDown = useCallback(
+    (currentId: string) => {
+      const all = nodesRef.current as any
+      const node = all.find((n: any) => n.id === currentId)
+      if (!node) return
+
+      // Try next block in stack first
+      let next = getNextBlockInStack(currentId, all)
+      // Fallback to next by Y position
+      if (!next) next = getNextBlockByY(currentId, all)
+
+      if (next) {
+        setTimeout(() => nodeRefsMap.current[next.id]?.current?.focus?.(), 0)
+      }
+    },
+    [nodesRef, nodeRefsMap]
+  )
+
   return {
     handleTabNext,
     handleTabPrev,
+    handleArrowUp,
+    handleArrowDown,
   }
 }
 

@@ -17,6 +17,8 @@ export type BlockCallbacks = {
   onHeightChange: (id: string, height: number) => void
   onTabNext: (id: string) => void
   onTabPrev: (id: string) => void
+  onArrowUp: (id: string) => void
+  onArrowDown: (id: string) => void
   onSlashCommand: (id: string, rect?: DOMRect | null) => void
   onDelete: (id: string) => void
   onSplit: (id: string, before: string, after: string) => void
@@ -35,7 +37,7 @@ export type UseBlockOperationsOptions = {
   syncContainers: (nodes: Node[]) => Node[]
   handleHeightChange: (nodeId: string, newHeight: number) => void
   handleSlashCommand: (nodeId: string, rectFromChild?: DOMRect | null) => void
-  tabHandlersRef: React.MutableRefObject<{ handleTabNext?: (id: string) => void; handleTabPrev?: (id: string) => void }>
+  tabHandlersRef: React.MutableRefObject<{ handleTabNext?: (id: string) => void; handleTabPrev?: (id: string) => void; handleArrowUp?: (id: string) => void; handleArrowDown?: (id: string) => void }>
   gap: number
   blockWidth: number
   headerHeight: number
@@ -163,6 +165,8 @@ export function useBlockOperations(
           onHeightChange: handleHeightChange,
           onTabNext: (id: string) => tabHandlersRef.current.handleTabNext?.(id),
           onTabPrev: (id: string) => tabHandlersRef.current.handleTabPrev?.(id),
+          onArrowUp: (id: string) => tabHandlersRef.current.handleArrowUp?.(id),
+          onArrowDown: (id: string) => tabHandlersRef.current.handleArrowDown?.(id),
           onSlashCommand: handleSlashCommand,
           onDelete: handleDelete,
           onSplit: handleSplit,
@@ -318,6 +322,8 @@ export function useBlockOperations(
           onHeightChange: handleHeightChange,
           onTabNext: (id: string) => tabHandlersRef.current.handleTabNext?.(id),
           onTabPrev: (id: string) => tabHandlersRef.current.handleTabPrev?.(id),
+          onArrowUp: (id: string) => tabHandlersRef.current.handleArrowUp?.(id),
+          onArrowDown: (id: string) => tabHandlersRef.current.handleArrowDown?.(id),
           onSlashCommand: handleSlashCommand,
           onDelete: handleDelete,
           onSplit: handleSplit,

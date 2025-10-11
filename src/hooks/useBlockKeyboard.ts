@@ -103,6 +103,39 @@ export function useBlockKeyboard(
           } catch {}
         }
       }
+
+      // Arrow Up - navigate to previous block when cursor at start
+      if (e.key === 'ArrowUp') {
+        const ta = textareaRef.current
+        if (ta && ta.selectionStart === 0 && ta.selectionEnd === 0) {
+          e.preventDefault()
+          if (data.onArrowUp) {
+            data.onArrowUp(id)
+          } else {
+            try {
+              window.dispatchEvent(new CustomEvent('block:arrowUp', { detail: { id } }))
+            } catch {}
+          }
+          return
+        }
+      }
+
+      // Arrow Down - navigate to next block when cursor at end
+      if (e.key === 'ArrowDown') {
+        const ta = textareaRef.current
+        const text = data.text ?? ''
+        if (ta && ta.selectionStart === text.length && ta.selectionEnd === text.length) {
+          e.preventDefault()
+          if (data.onArrowDown) {
+            data.onArrowDown(id)
+          } else {
+            try {
+              window.dispatchEvent(new CustomEvent('block:arrowDown', { detail: { id } }))
+            } catch {}
+          }
+          return
+        }
+      }
     },
     [id, data, textareaRef, blockRef]
   )

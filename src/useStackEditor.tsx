@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNodesState, applyNodeChanges, useStoreApi, type Node, type NodeTypes, type NodeChange } from '@xyflow/react'
-import { useLiveResize } from './stores/useLiveResize'
 import NotionBlock from './renderers/NotionBlock'
 import StackContainer from './renderers/StackContainer'
 import SlashMenu, { type SlashMenuItem } from './renderers/SlashMenu'
@@ -42,8 +41,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   const viewportRef = useRef({ x: 0, y: 0, zoom: 1 })
   const storeApi = useStoreApi()
 
-  // Live resize state
-  const liveResize = useLiveResize()
+  // Active resize tracking
   const activeResizeContainerRef = useRef<string | null>(null)
 
   // Ref to hold callback injection function (populated later)
@@ -174,49 +172,15 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   // Resize callbacks
   const onContainerResizeStart = useCallback(
     (containerId: string, side: 'left' | 'right') => {
-      const node = storeApi.getState().nodeLookup?.get(containerId)
-      const width =
-        (node as any)?.measured?.width ||
-        (nodesRef.current.find((n) => n.id === containerId) as any)?.data?.width ||
-        200
-      const x = (node as any)?.internals?.positionAbsolute?.x || 0
-
-      console.log('🟢 Resize start:', { containerId, side, width, x })
       activeResizeContainerRef.current = containerId
-      liveResize.startResize(containerId, side, width, x)
     },
-    [storeApi, liveResize]
+    []
   )
 
-  const onContainerResizeEnd = useCallback(
-    (containerId: string) => {
-      const resizeState = liveResize.getState(containerId)
-      if (!resizeState) return
-
-      // Persist final width once
-      const node = storeApi.getState().nodeLookup?.get(containerId)
-      const finalWidth = (node as any)?.measured?.width || resizeState.startWidth
-
-      setNodesBase((nds) => {
-        const updated = nds.map((n: any) =>
-          n.id === containerId
-            ? {
-                ...n,
-                style: { ...n.style, width: finalWidth },
-                data: { ...n.data, width: finalWidth, manualWidth: finalWidth },
-              }
-            : n
-        )
-        // Inject callbacks if injection function is ready
-        return injectCallbacksRef.current ? injectCallbacksRef.current(updated) : updated
-      })
-
-      // Clear resize state
-      activeResizeContainerRef.current = null
-      liveResize.endResize(containerId)
-    },
-    [liveResize, storeApi, setNodesBase]
-  )
+  const onContainerResizeEnd = useCallback((containerId: string) => {
+    // Clear active resize tracking
+    activeResizeContainerRef.current = null
+  }, [])
 
   // Inject resize callbacks into container nodes
   const injectContainerCallbacks = useCallback(
@@ -349,41 +313,14 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     </>
   )
 
-  // Custom onNodesChange with position guard and dx calculation
+  // Custom onNodesChange with position guard
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       setNodes((prev) => {
         // 1) Apply RF changes first
         let next = applyNodeChanges(changes, prev)
 
-        // 2) Handle dimension changes for containers during resize
-        for (const change of changes as any) {
-          if (change.type !== 'dimensions') continue
-
-          const container = next.find((n) => n.id === change.id)
-          if ((container as any)?.type !== 'stackContainer') continue
-
-          const resizeState = liveResize.getState(change.id)
-          if (!resizeState) continue
-
-          // Get current width from change or node lookup
-          const node = storeApi.getState().nodeLookup?.get(change.id)
-          const currentWidth = change.dimensions?.width || (node as any)?.measured?.width || resizeState.startWidth
-
-          // Mirror container width to children (accounting for padding)
-          const childWidth = currentWidth - 8 // 4px left + 4px right padding
-          next = next.map((n: any) =>
-            n.parentId === change.id
-              ? {
-                  ...n,
-                  style: { ...n.style, width: childWidth },
-                  data: { ...n.data, width: childWidth },
-                }
-              : n
-          )
-        }
-
-        // 3) Position guard: ignore child position changes during active resize
+        // 2) Position guard: ignore child position changes during active resize
         const activeContainerId = activeResizeContainerRef.current
         if (activeContainerId) {
           for (const change of changes as any) {
@@ -403,7 +340,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         return next
       })
     },
-    [setNodes, liveResize, storeApi]
+    [setNodes]
   )
 
   return {

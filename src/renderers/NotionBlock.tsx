@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { BlockData } from '../types'
 import { useBlockKeyboard } from '../hooks/useBlockKeyboard'
-import { useLiveResize } from '../stores/useLiveResize'
 
 type Props = {
   id: string
@@ -14,20 +13,6 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const blockRef = useRef<HTMLDivElement | null>(null)
   const [isFocused, setIsFocused] = useState(false)
-
-  // Live resize transform (Option A)
-  const parentContainerId = (data as any).parentContainerId || parentId
-  const resizeState = useLiveResize((state) =>
-    parentContainerId ? state.resizing.get(parentContainerId) : undefined
-  )
-  const dx = resizeState?.dx ?? 0
-  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
-  const dxSnapped = Math.round(dx * dpr) / dpr
-
-  // Debug log
-  if (resizeState && dxSnapped !== 0) {
-    console.log('🔵 Block transform:', { id, parentContainerId, dx: resizeState.dx, dxSnapped })
-  }
 
   // Use extracted keyboard handler
   const handleKeyDown = useBlockKeyboard(id, data, textareaRef, blockRef)
@@ -138,35 +123,26 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
           data.stackId ? 'in-stack' : ''
         }`}
       >
-        {/* Inner wrapper for live resize transform */}
-        <div
-          className="block-content-wrapper"
-          style={{
-            transform: dxSnapped !== 0 ? `translate3d(${dxSnapped}px, 0, 0)` : undefined,
-            transition: 'none',
+        <textarea
+          ref={textareaRef}
+          value={data.text}
+          onChange={(e) => {
+            const val = e.target.value
+            if (data.onChange) {
+              data.onChange(val)
+            } else {
+              try {
+                window.dispatchEvent(new CustomEvent('block:change', { detail: { id, text: val } }))
+              } catch {}
+            }
           }}
-        >
-          <textarea
-            ref={textareaRef}
-            value={data.text}
-            onChange={(e) => {
-              const val = e.target.value
-              if (data.onChange) {
-                data.onChange(val)
-              } else {
-                try {
-                  window.dispatchEvent(new CustomEvent('block:change', { detail: { id, text: val } }))
-                } catch {}
-              }
-            }}
-            onKeyDown={handleKeyDown}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            rows={1}
-            placeholder={data.placeholder || "Type '/' for commands"}
-            className="notion-block-textarea"
-          />
-        </div>
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          rows={1}
+          placeholder={data.placeholder || "Type '/' for commands"}
+          className="notion-block-textarea"
+        />
       </div>
     </div>
   )

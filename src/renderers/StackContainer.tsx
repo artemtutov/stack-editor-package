@@ -14,7 +14,6 @@ type Props = {
 
 export default function StackContainer({ id, data, selected }: Props) {
   const { onResizeStart, onResizeEnd } = data
-  console.log('🟡 StackContainer render:', { id, hasResizeStart: !!onResizeStart, hasResizeEnd: !!onResizeEnd })
 
   return (
     <div
@@ -36,14 +35,8 @@ export default function StackContainer({ id, data, selected }: Props) {
         position={Position.Left}
         minWidth={200}
         maxWidth={600}
-        onResizeStart={() => {
-          console.log('🔴 LEFT handle onResizeStart triggered')
-          onResizeStart?.(id, 'left')
-        }}
-        onResizeEnd={() => {
-          console.log('🔴 LEFT handle onResizeEnd triggered')
-          onResizeEnd?.(id)
-        }}
+        onResizeStart={() => onResizeStart?.(id, 'left')}
+        onResizeEnd={() => onResizeEnd?.(id)}
         style={{
           background: 'transparent',
           width: '8px',
@@ -56,14 +49,8 @@ export default function StackContainer({ id, data, selected }: Props) {
         position={Position.Right}
         minWidth={200}
         maxWidth={600}
-        onResizeStart={() => {
-          console.log('🔴 RIGHT handle onResizeStart triggered')
-          onResizeStart?.(id, 'right')
-        }}
-        onResizeEnd={() => {
-          console.log('🔴 RIGHT handle onResizeEnd triggered')
-          onResizeEnd?.(id)
-        }}
+        onResizeStart={() => onResizeStart?.(id, 'right')}
+        onResizeEnd={() => onResizeEnd?.(id)}
         style={{
           background: 'transparent',
           width: '8px',

@@ -140,16 +140,21 @@ export function useBlockOperations(
 
   const addBelow = useCallback(
     (currentNodeId: string) => {
+      // Generate IDs outside setNodes to prevent multiple calls during React re-renders
+      const newId = nextBlockId()
+      if (!nodeRefsMap.current[newId]) nodeRefsMap.current[newId] = { current: null }
+
+      const currentNodeCheck = nodesRef.current.find((n) => n.id === currentNodeId) as any
+      if (!currentNodeCheck) return
+
+      const isCreatingNewStack = !currentNodeCheck.data.stackId
+      const stackId = currentNodeCheck.data.stackId || nextStackId()
+
       setNodes((nds) => {
         const currentNode = nds.find((n) => n.id === currentNodeId) as any
         if (!currentNode) return nds
 
-        const newId = nextBlockId()
-        if (!nodeRefsMap.current[newId]) nodeRefsMap.current[newId] = { current: null }
-
-        const isCreatingNewStack = !currentNode.data.stackId
-        const stackId = currentNode.data.stackId || nextStackId()
-
+        // Use pre-generated newId, stackId, and isCreatingNewStack
         // Create callbacks for the new block
         const newBlockCallbacks = {
           onChange: (txt: string) =>
@@ -287,15 +292,19 @@ export function useBlockOperations(
 
   const handleSplit = useCallback(
     (nodeId: string, before: string, after: string) => {
+      // Generate IDs outside setNodes to prevent multiple calls during React re-renders
+      const newId = nextBlockId()
+      if (!nodeRefsMap.current[newId]) nodeRefsMap.current[newId] = { current: null }
+
+      const nodeCheck = nodesRef.current.find((n) => n.id === nodeId) as any
+      if (!nodeCheck) return
+
+      const isCreatingNewStack = !nodeCheck.data?.stackId
+      const stackId = nodeCheck.data?.stackId || nextStackId()
+
       setNodes((nds) => {
         const node = nds.find((n) => n.id === nodeId) as any
         if (!node) return nds
-
-        const newId = nextBlockId()
-        if (!nodeRefsMap.current[newId]) nodeRefsMap.current[newId] = { current: null }
-
-        const isCreatingNewStack = !node.data?.stackId
-        const stackId = node.data?.stackId || nextStackId()
 
         // Create callbacks for the new block
         const newBlockCallbacks = {

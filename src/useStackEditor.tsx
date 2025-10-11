@@ -15,7 +15,7 @@ import { useStackLayout } from './hooks/useStackLayout'
 import { useStackDrag } from './hooks/useStackDrag'
 import { useBlockOperations, type NodeRefsMap } from './hooks/useBlockOperations'
 import { useKeyboardNav, useTabHandlers } from './hooks/useKeyboardNav'
-import { nextBlockId } from './logic/stackState'
+import { nextBlockId, nextStackId } from './logic/stackState'
 import { updateBottomNodeFlags } from './logic/stackLayout'
 
 // Default options
@@ -324,10 +324,10 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     })
 
     // Set up initial stack if multiple blocks
-    const stackId = created[0]?.id
+    const stackId = created.length > 1 ? nextStackId() : undefined
     const withStack = created.map((n) => ({
       ...n,
-      data: { ...(n.data as BlockData), stackId: created.length > 1 ? stackId : (n.data as any).stackId },
+      data: { ...(n.data as BlockData), stackId },
     }))
 
     // Wire up callbacks

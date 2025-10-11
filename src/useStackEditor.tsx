@@ -177,10 +177,38 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     []
   )
 
-  const onContainerResizeEnd = useCallback((containerId: string) => {
-    // Clear active resize tracking
-    activeResizeContainerRef.current = null
-  }, [])
+  const onContainerResizeEnd = useCallback(
+    (containerId: string) => {
+      // Get final width from React Flow
+      const node = storeApi.getState().nodeLookup?.get(containerId)
+      const finalWidth = (node as any)?.measured?.width || 200
+      const childWidth = finalWidth - 8 // Account for container padding
+
+      // Persist width to both container and children
+      const setNodesFn = setNodesRef.current || setNodesBase
+      setNodesFn((nds) =>
+        nds.map((n: any) =>
+          n.id === containerId
+            ? {
+                ...n,
+                style: { ...n.style, width: finalWidth },
+                data: { ...n.data, width: finalWidth, manualWidth: finalWidth },
+              }
+            : n.parentId === containerId
+            ? {
+                ...n,
+                style: { ...n.style, width: childWidth },
+                data: { ...n.data, width: childWidth },
+              }
+            : n
+        )
+      )
+
+      // Clear active resize tracking
+      activeResizeContainerRef.current = null
+    },
+    [storeApi, setNodesBase]
+  )
 
   // Inject resize callbacks into container nodes
   const injectContainerCallbacks = useCallback(

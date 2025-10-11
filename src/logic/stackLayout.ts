@@ -152,16 +152,6 @@ export function syncStackContainers(
 
       // Convert blocks to relative positions if needed
       stackNodes.forEach((block: any) => {
-        console.log('🔍 Block conversion:', {
-          blockId: block.id,
-          stackId: block.data?.stackId,
-          parentId: block.parentId,
-          position: block.position,
-          containerX,
-          containerY,
-          parentIdMatchesStackId: block.parentId === stackId,
-        })
-
         let relativeX: number, relativeY: number
 
         if (block.parentId === stackId) {
@@ -175,8 +165,6 @@ export function syncStackContainers(
           relativeX = absolutePos.x - containerX
           relativeY = absolutePos.y - containerY
         }
-
-        console.log('  → Converted to relative:', { relativeX, relativeY })
 
         updatedBlocks.push({
           ...block,

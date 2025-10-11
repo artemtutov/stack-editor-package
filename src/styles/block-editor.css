@@ -76,15 +76,15 @@
 /* Block content */
 .notion-block {
     position: relative;
-    padding: 2px 4px;
-    margin: 1px 0;
+    padding: 0;
+    margin: 0;
     border-radius: 3px;
     background: #ffffff;
     transition: background-color 20ms ease, box-shadow 150ms ease;
     min-height: 24px;
     width: 100%; /* Take full width of wrapper */
     border: 0; /* keep layout width identical whether selected or not */
-    line-height: 1; /* Override Tailwind's inherited line-height: 1.5 */
+    line-height: 1;
 }
 
 /* Hover state - very subtle */
@@ -165,12 +165,12 @@
   outline: none;
   background: transparent;
   font-size: 14px;
-  line-height: 1.5;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   color: rgb(55, 53, 47);
   resize: none;
-  padding: 3px 6px;
+  padding: 4px 2px 0 4px;
   overflow: hidden;
+  min-height: 24px;
 }
 
 .notion-block textarea::placeholder {
@@ -330,16 +330,9 @@
 .react-flow__resize-control.line.left,
 .react-flow__resize-control.line.right {
   width: 8px !important;
-  background-color: orange !important;
+  background-color: transparent !important;
   border: none !important;
   border-left-width: 0 !important;
   border-right-width: 0 !important;
   border-radius: 4px;
-}
-
-/* Right handle needs special positioning to align with right edge */
-.react-flow__resize-control.line.right {
-  left: auto !important;
-  right: -12px !important;
-  transform: none !important;
 }

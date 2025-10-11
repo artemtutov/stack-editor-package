@@ -7,13 +7,14 @@ type Props = {
     height?: number
     stackId?: string
     onResizeStart?: (containerId: string, side: 'left' | 'right') => void
+    onResize?: (containerId: string, newWidth: number) => void
     onResizeEnd?: (containerId: string) => void
   }
   selected?: boolean
 }
 
 export default function StackContainer({ id, data, selected }: Props) {
-  const { onResizeStart, onResizeEnd } = data
+  const { onResizeStart, onResize, onResizeEnd } = data
 
   return (
     <div
@@ -36,6 +37,7 @@ export default function StackContainer({ id, data, selected }: Props) {
         minWidth={200}
         maxWidth={600}
         onResizeStart={() => onResizeStart?.(id, 'left')}
+        onResize={(_, params) => onResize?.(id, params.width)}
         onResizeEnd={() => onResizeEnd?.(id)}
         style={{
           background: 'transparent',
@@ -50,6 +52,7 @@ export default function StackContainer({ id, data, selected }: Props) {
         minWidth={200}
         maxWidth={600}
         onResizeStart={() => onResizeStart?.(id, 'right')}
+        onResize={(_, params) => onResize?.(id, params.width)}
         onResizeEnd={() => onResizeEnd?.(id)}
         style={{
           background: 'transparent',

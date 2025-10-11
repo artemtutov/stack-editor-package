@@ -73,11 +73,16 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
           n.id === nodeId ? { ...n, data: { ...n.data, height: newHeight } } : n
         )
         const changedNode = updated.find((n) => n.id === nodeId) as any
-        if (changedNode?.data?.stackId) {
-          updated = applyLayout(changedNode.data.stackId, updated)
-        } else {
-          updated = syncContainers(updated)
+
+        // Skip layout sync during active resize to avoid width conflicts
+        if (!activeResizeContainerRef.current) {
+          if (changedNode?.data?.stackId) {
+            updated = applyLayout(changedNode.data.stackId, updated)
+          } else {
+            updated = syncContainers(updated)
+          }
         }
+
         // Inject callbacks if injection function is ready
         return injectCallbacksRef.current ? injectCallbacksRef.current(updated) : updated
       })
@@ -177,6 +182,27 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     []
   )
 
+  const onContainerResize = useCallback(
+    (containerId: string, newWidth: number) => {
+      const childWidth = newWidth - 8 // Account for container padding
+
+      const setNodesFn = setNodesRef.current || setNodesBase
+      setNodesFn((nds) =>
+        nds.map((n: any) =>
+          // Only update children - let React Flow handle container dimensions
+          n.parentId === containerId
+            ? {
+                ...n,
+                style: { ...n.style, width: childWidth },
+                data: { ...n.data, width: childWidth },
+              }
+            : n
+        )
+      )
+    },
+    [setNodesBase]
+  )
+
   const onContainerResizeEnd = useCallback(
     (containerId: string) => {
       // Get final width from React Flow
@@ -184,10 +210,10 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       const finalWidth = (node as any)?.measured?.width || 200
       const childWidth = finalWidth - 8 // Account for container padding
 
-      // Persist width to both container and children
+      // Persist width to both container and children, then run layout sync
       const setNodesFn = setNodesRef.current || setNodesBase
-      setNodesFn((nds) =>
-        nds.map((n: any) =>
+      setNodesFn((nds) => {
+        let updated = nds.map((n: any) =>
           n.id === containerId
             ? {
                 ...n,
@@ -202,12 +228,17 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
               }
             : n
         )
-      )
+
+        // Now safe to run layout sync to recalculate heights
+        updated = syncContainers(updated)
+
+        return updated
+      })
 
       // Clear active resize tracking
       activeResizeContainerRef.current = null
     },
-    [storeApi, setNodesBase]
+    [storeApi, setNodesBase, syncContainers]
   )
 
   // Inject resize callbacks into container nodes
@@ -220,13 +251,14 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
               data: {
                 ...n.data,
                 onResizeStart: onContainerResizeStart,
+                onResize: onContainerResize,
                 onResizeEnd: onContainerResizeEnd,
               },
             }
           : n
       )
     },
-    [onContainerResizeStart, onContainerResizeEnd]
+    [onContainerResizeStart, onContainerResize, onContainerResizeEnd]
   )
 
   // Populate ref for use in early callbacks

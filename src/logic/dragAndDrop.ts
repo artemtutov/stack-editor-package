@@ -120,7 +120,8 @@ export function calculateDropIndicator(
   const { x: vx, y: vy, zoom } = viewport
   const screenX = vx + containerAbsX * zoom
   const screenY = vy + indicatorAbsY * zoom
-  const screenW = blockWidth * zoom
+  const containerWidth = (targetContainer.data as any)?.width || blockWidth
+  const screenW = containerWidth * zoom
 
   return {
     show: true,

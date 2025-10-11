@@ -70,9 +70,7 @@
 /* Main block wrapper */
 .notion-block-wrapper {
   position: relative;
-  width: 200px; /* Fixed width for block content only */
-  max-width: 200px;
-  min-width: 200px;
+  /* Width set via inline style (width: 100%) to inherit from parent container */
 }
 
 /* Block content */

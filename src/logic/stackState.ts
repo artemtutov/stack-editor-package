@@ -9,6 +9,14 @@ export function nextBlockId(): string {
 }
 
 /**
+ * Generate unique stack/container IDs
+ */
+let globalStackCounter = 0
+export function nextStackId(): string {
+  return `container_${globalStackCounter++}`
+}
+
+/**
  * Get the previous block in a stack by insertion order
  */
 export function getPreviousBlockInStack(nodeId: string, allNodes: Node[]): Node | null {

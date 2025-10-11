@@ -3,6 +3,7 @@ import type { Node } from '@xyflow/react'
 import type { BlockData } from '../types'
 import {
   nextBlockId,
+  nextStackId,
   findFocusTargetAfterDelete,
   removeBlock,
   getPreviousBlockInStack,
@@ -147,7 +148,7 @@ export function useBlockOperations(
         if (!nodeRefsMap.current[newId]) nodeRefsMap.current[newId] = { current: null }
 
         const isCreatingNewStack = !currentNode.data.stackId
-        const stackId = currentNode.data.stackId || currentNodeId
+        const stackId = currentNode.data.stackId || nextStackId()
 
         // Create callbacks for the new block
         const newBlockCallbacks = {
@@ -165,7 +166,6 @@ export function useBlockOperations(
 
         if (isCreatingNewStack) {
           // Creating a new stack: create container first with proper parent-child setup
-          const containerId = `container-${stackId}`
           const currentHeight = currentNode.data.height || 24
           const topPadding = 4
           const sidePadding = 4
@@ -180,7 +180,7 @@ export function useBlockOperations(
           const containerWidth = blockWidth + 8
 
           const containerNode: Node = {
-            id: containerId,
+            id: stackId,
             type: 'stackContainer',
             position: { x: containerX, y: containerY },
             data: { width: containerWidth, height: containerHeight, stackId },
@@ -192,7 +192,7 @@ export function useBlockOperations(
           // Update current block with relative position and parentId
           const updatedCurrentNode = {
             ...currentNode,
-            parentId: containerId,
+            parentId: stackId,
             position: { x: sidePadding, y: headerHeight + topPadding },
             className: 'in-stack',
             data: {
@@ -207,7 +207,7 @@ export function useBlockOperations(
           const newNode: Node = {
             id: newId,
             type: 'block',
-            parentId: containerId,
+            parentId: stackId,
             position: { x: sidePadding, y: headerHeight + topPadding + currentHeight + gap },
             dragHandle: '.drag-handle',
             className: 'in-stack',
@@ -234,11 +234,10 @@ export function useBlockOperations(
           return updatedNodes
         } else {
           // Adding to existing stack: use existing layout logic
-          const containerId = `container-${stackId}`
           const newNode: Node = {
             id: newId,
             type: 'block',
-            parentId: containerId,
+            parentId: stackId,
             position: { x: 4, y: 0 },  // Relative position, layout will fix
             dragHandle: '.drag-handle',
             data: {
@@ -296,7 +295,7 @@ export function useBlockOperations(
         if (!nodeRefsMap.current[newId]) nodeRefsMap.current[newId] = { current: null }
 
         const isCreatingNewStack = !node.data?.stackId
-        const stackId = node.data?.stackId || nodeId
+        const stackId = node.data?.stackId || nextStackId()
 
         // Create callbacks for the new block
         const newBlockCallbacks = {
@@ -314,7 +313,6 @@ export function useBlockOperations(
 
         if (isCreatingNewStack) {
           // Creating a new stack: create container first with proper parent-child setup
-          const containerId = `container-${stackId}`
           const currentHeight = node.data.height || 24
           const topPadding = 4
           const sidePadding = 4
@@ -329,7 +327,7 @@ export function useBlockOperations(
           const containerWidth = blockWidth + 8
 
           const containerNode: Node = {
-            id: containerId,
+            id: stackId,
             type: 'stackContainer',
             position: { x: containerX, y: containerY },
             data: { width: containerWidth, height: containerHeight, stackId },
@@ -341,7 +339,7 @@ export function useBlockOperations(
           // Update current block with relative position and parentId
           const updatedCurrentNode = {
             ...node,
-            parentId: containerId,
+            parentId: stackId,
             position: { x: sidePadding, y: headerHeight + topPadding },
             className: 'in-stack',
             data: {
@@ -357,7 +355,7 @@ export function useBlockOperations(
           const newNode: Node = {
             id: newId,
             type: 'block',
-            parentId: containerId,
+            parentId: stackId,
             position: { x: sidePadding, y: headerHeight + topPadding + currentHeight + gap },
             dragHandle: '.drag-handle',
             className: 'in-stack',
@@ -388,11 +386,10 @@ export function useBlockOperations(
             n.id === nodeId ? { ...n, data: { ...n.data, text: before, stackId } } : n
           )
 
-          const containerId = `container-${stackId}`
           const newNode: Node = {
             id: newId,
             type: 'block',
-            parentId: containerId,
+            parentId: stackId,
             position: { x: 4, y: 0 },  // Relative position, layout will fix
             dragHandle: '.drag-handle',
             data: {

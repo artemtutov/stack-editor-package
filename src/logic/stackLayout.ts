@@ -120,13 +120,12 @@ export function syncStackContainers(
   // Process each stack
   Object.entries(stackGroups).forEach(([stackId, stackNodes]) => {
     const isMultiBlock = stackNodes.length > 1
-    const containerId = `container-${stackId}`
-    const existingContainer = existingContainers.find(c => c.id === containerId)
+    const existingContainer = existingContainers.find(c => c.id === stackId)
 
     if (isMultiBlock) {
       // Multi-block stack: needs container
       // Find any block that's already parented to this container
-      const parentedBlock = stackNodes.find((b: any) => b.parentId === containerId)
+      const parentedBlock = stackNodes.find((b: any) => b.parentId === stackId)
 
       let containerX: number, containerY: number
 
@@ -154,7 +153,7 @@ export function syncStackContainers(
       stackNodes.forEach((block: any) => {
         let relativeX: number, relativeY: number
 
-        if (block.parentId === containerId) {
+        if (block.parentId === stackId) {
           // Already relative
           relativeX = block.position.x
           relativeY = block.position.y
@@ -167,10 +166,10 @@ export function syncStackContainers(
         updatedBlocks.push({
           ...block,
           position: { x: relativeX, y: relativeY },
-          parentId: containerId,
+          parentId: stackId,
           className: 'in-stack',
           style: { ...(block.style || {}), width: childWidth },
-          data: { ...(block.data || {}), parentContainerId: containerId },
+          data: { ...(block.data || {}), parentContainerId: stackId },
         })
       })
 
@@ -188,7 +187,7 @@ export function syncStackContainers(
       const containerHeight = maxY - minY + headerHeight + 8
 
       newContainers.push({
-        id: containerId,
+        id: stackId,
         type: 'stackContainer',
         position: { x: containerX, y: containerY },
         style: {

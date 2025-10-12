@@ -95,7 +95,7 @@
 /* Focus state - Notion's signature blue glow (ONLY when focused) */
 .notion-block.focused {
   background-color: #ffffff;
-  box-shadow: 0 0 0 1px rgba(35, 131, 226, 0.3);
+  box-shadow: 0 0 0 1px rgba(35, 131, 226, 1);
 }
 
 /* Selected state (React Flow selection) - more subtle */

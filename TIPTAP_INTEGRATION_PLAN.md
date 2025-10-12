@@ -30,7 +30,7 @@ npm install --save-dev @types/dompurify
   - Caret memory
   - Diffs and state management
 
-#### B. List Semantics Decision
+#### B. List Semantics Decision ⭐ CRITICAL
 
 **Option A: One block = whole list** (RECOMMENDED)
 ```
@@ -51,9 +51,17 @@ block_2: <li>Item 2</li>
 - ❌ Harder conversions
 - ❌ More complex state management
 
-**Decision:** Choose Option A for Phase 1. Can migrate to B in Phase 2 if needed.
+**Decision:** Choose **Option A** for Phase 1. Can migrate to B in Phase 2 if needed.
 
-### 3. Create HTML Sanitizer (`src/utils/sanitizeHTML.ts`)
+**Keymap Behavior with Option A:**
+- **Enter inside list** → TipTap creates new list item (stays in same editor/block)
+- **Enter at end of list** (after last item) → Creates new block below
+- **Enter in paragraph** (non-list) → Creates new block below
+- **Backspace at start** → Merges with previous block
+
+This means your CanvasKeymap should only fire "create block below" when at the end of a NON-LIST block. Inside lists, TipTap's default Enter behavior handles list item creation.
+
+### 3. Create HTML Sanitizer (`src/utils/sanitizeHTML.ts`) ⭐ CRITICAL
 
 ```typescript
 import DOMPurify from 'dompurify'
@@ -66,19 +74,47 @@ const ALLOWED_TAGS = [
 
 const ALLOWED_ATTR = ['href', 'target', 'rel']
 
+// Explicitly forbid dangerous tags
+const FORBID_TAGS = ['style', 'script', 'iframe', 'object', 'embed']
+
 export function sanitizeHTML(html: string): string {
-  // Configure DOMPurify
+  // Configure DOMPurify with strict settings
   const clean = DOMPurify.sanitize(html, {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
+    FORBID_TAGS,
+    FORBID_ATTR: ['style', 'onerror', 'onload'], // Block inline styles and event handlers
   })
 
   // Normalize tags: <b> → <strong>, <i> → <em>
-  return clean
-    .replace(/<b>/g, '<strong>')
-    .replace(/<\/b>/g, '</strong>')
-    .replace(/<i>/g, '<em>')
-    .replace(/<\/i>/g, '</em>')
+  let normalized = clean
+    .replace(/<b>/gi, '<strong>')
+    .replace(/<\/b>/gi, '</strong>')
+    .replace(/<i>/gi, '<em>')
+    .replace(/<\/i>/gi, '</em>')
+
+  // Fix links: add rel="noopener noreferrer" when target="_blank"
+  normalized = fixLinkSecurity(normalized)
+
+  return normalized
+}
+
+/**
+ * Ensure links with target="_blank" have secure rel attributes
+ */
+function fixLinkSecurity(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const links = doc.querySelectorAll('a[target="_blank"]')
+
+  links.forEach(link => {
+    const rel = link.getAttribute('rel') || ''
+    const relValues = new Set(rel.split(/\s+/).filter(Boolean))
+    relValues.add('noopener')
+    relValues.add('noreferrer')
+    link.setAttribute('rel', Array.from(relValues).join(' '))
+  })
+
+  return doc.body.innerHTML
 }
 
 export function sanitizeAndSave(html: string): string {
@@ -91,7 +127,7 @@ export function sanitizeAndSave(html: string): string {
 }
 ```
 
-### 4. Create CanvasKeymap Extension (`src/extensions/CanvasKeymap.ts`)
+### 4. Create CanvasKeymap Extension (`src/extensions/CanvasKeymap.ts`) ⭐ CRITICAL
 
 ```typescript
 import { Extension } from '@tiptap/core'
@@ -119,17 +155,23 @@ export const CanvasKeymap = Extension.create<CanvasKeymapOptions>({
             const { selection } = state
             const { $from, $to } = selection
 
-            // Check if we're at document boundaries
-            const atStart = $from.parentOffset === 0 && $from.depth === 1
-            const atEnd = $from.parentOffset === $from.parent.content.size && $from.depth === 1
-
-            // Ignore during IME composition
+            // Ignore during IME composition (critical for mobile)
             if ((view as any).composing) {
               return false
             }
 
-            // Enter at end → create block below
-            if (event.key === 'Enter' && !event.shiftKey && atEnd) {
+            // Use ProseMirror's endOfTextblock for robust boundary detection
+            // This works correctly with lists, blockquotes, and other nested structures
+            const atStart = view.endOfTextblock('backward', state)
+            const atEnd = view.endOfTextblock('forward', state)
+
+            // Check if we're in a list item
+            const $pos = state.doc.resolve($from.pos)
+            const isInList = $pos.parent.type.name === 'listItem'
+
+            // Enter at end of NON-LIST block → create block below
+            // Inside lists, let TipTap handle Enter (creates new list item)
+            if (event.key === 'Enter' && !event.shiftKey && atEnd && !isInList) {
               event.preventDefault()
               onEnterBelow()
               return true
@@ -158,7 +200,6 @@ export const CanvasKeymap = Extension.create<CanvasKeymapOptions>({
 
             // Tab handling: let TipTap handle for lists, otherwise navigate
             if (event.key === 'Tab') {
-              const isInList = state.doc.resolve($from.pos).parent.type.name === 'listItem'
               if (!isInList) {
                 event.preventDefault()
                 if (event.shiftKey) {
@@ -178,6 +219,12 @@ export const CanvasKeymap = Extension.create<CanvasKeymapOptions>({
   },
 })
 ```
+
+**Key improvements:**
+- Uses `view.endOfTextblock('forward')` / `view.endOfTextblock('backward')` for accurate boundary detection
+- Properly handles lists: Enter inside list creates list item, Enter after list creates new block
+- Tab inside list = indent/outdent (TipTap default), Tab outside list = navigate between blocks
+- IME composition guard prevents breaking input on mobile
 
 ### 5. Create TipTapEditor Component (`src/renderers/TipTapEditor.tsx`)
 
@@ -217,6 +264,9 @@ export default function TipTapEditor({
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3],
+        },
+        history: {
+          depth: 100, // Limit history depth to prevent memory bloat
         },
       }),
       Underline,
@@ -337,14 +387,65 @@ const [isFocused, setIsFocused] = useState(false)
 />
 ```
 
-### 9. Update FullscreenModal
+### 9. Add Paste Splitter (`src/utils/pasteSplitter.ts`) ⭐ MUST-HAVE
+
+**Problem:** Pasting multi-paragraph content creates monster blocks.
+
+**Solution:** Detect and split into multiple blocks.
+
+```typescript
+export function splitPastedContent(html: string): string[] {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const topLevelNodes = Array.from(doc.body.children)
+
+  if (topLevelNodes.length <= 1) {
+    return [html]
+  }
+
+  return topLevelNodes.map(node => node.outerHTML)
+}
+```
+
+**Usage in TipTapEditor:**
+```typescript
+// Add to editor config
+editorProps: {
+  handlePaste: (view, event) => {
+    const html = event.clipboardData?.getData('text/html')
+    if (!html) return false
+
+    const blocks = splitPastedContent(html)
+    if (blocks.length > 1) {
+      event.preventDefault()
+
+      // Insert first block in current editor
+      view.dispatch(view.state.tr.replaceSelectionWith(
+        view.state.schema.nodes.paragraph.create()
+      ))
+
+      // Create new blocks for remaining content
+      blocks.slice(1).forEach(blockHtml => {
+        onEnterBelow() // Creates new block
+        // Set content in new block (requires coordination with parent)
+      })
+
+      return true
+    }
+    return false
+  }
+}
+```
+
+**Note:** Full implementation requires coordination with parent component to set content in newly created blocks. This is a simplified version for Phase 1.
+
+### 10. Update FullscreenModal
 
 - Get all blocks in stack (filter by `stackId`, sort by `insertionOrder`)
 - Pass `stackId` and nodes to modal
 - Render each block with TipTapEditor
 - Keep same callbacks (they update ReactFlow state)
 
-### 10. Add Basic Styling (`src/styles/tiptap.css`)
+### 11. Add Basic Styling (`src/styles/tiptap.css`)
 
 ```css
 /* TipTap editor wrapper */
@@ -359,13 +460,13 @@ const [isFocused, setIsFocused] = useState(false)
   padding: 4px 0;
 }
 
-/* Placeholder */
+/* Placeholder - CRITICAL: pointer-events: none prevents click stealing */
 .ProseMirror p.is-editor-empty:first-child::before {
   color: #adb5bd;
   content: attr(data-placeholder);
   float: left;
   height: 0;
-  pointer-events: none;
+  pointer-events: none; /* Prevents placeholder from stealing focus */
 }
 
 /* Headings */
@@ -418,25 +519,54 @@ const [isFocused, setIsFocused] = useState(false)
 }
 ```
 
-### 11. Phase 1 Sanity Checklist
+### 12. Correctness Nits (Small Fixes, Big Impact)
 
-Before shipping Phase 1, verify:
+**History Depth Limit** ✅ Already configured in TipTapEditor
+- StarterKit's History set to depth: 100
+- Prevents memory bloat with many editors
+- Phase 2 pooling will further reduce pressure
 
-- [ ] All blocks have stable `id` (uuid)
-- [ ] HTML is sanitized on every save/paste (DOMPurify)
-- [ ] List semantics decided (Option A or B)
-- [ ] Enter at end → creates block below
+**Placeholder Click-Through** ✅ Already configured in CSS
+- `pointer-events: none` on placeholder pseudo-element
+- Prevents placeholder from stealing focus
+- Critical for smooth UX
+
+**Mobile/IME Composition** ✅ Already in CanvasKeymap
+- `view.composing` guard prevents navigation during typing
+- Test early on iOS Safari & Android Chrome
+- Focus on Arrow/Backspace boundaries and OS keyboard bar
+
+### 13. Phase 1 Go/No-Go Checklist
+
+**Must ship before Phase 1:**
+
+- [ ] ✅ **Stable ID per block** (uuid everywhere, even with HTML storage)
+- [ ] ✅ **Sanitizer & paste splitter active** (FORBID_TAGS, link security)
+- [ ] ✅ **Keymap handles boundaries + IME** (endOfTextblock, view.composing)
+- [ ] ✅ **Drag disabled while focused** (drag handle guard)
+- [ ] ✅ **Tested with 20-30 blocks** (desktop + iOS/Android)
+
+**Functional verification:**
+
+- [ ] List semantics decided (Option A: one block = whole list)
+- [ ] Enter at end → creates block below (except inside lists)
 - [ ] Backspace at start → merges with previous block
 - [ ] ArrowUp/Down at boundaries → navigates between blocks
 - [ ] Tab/Shift+Tab navigates between blocks (except inside lists)
-- [ ] IME composition is handled (no navigation during typing)
-- [ ] Dragging is disabled while editor is focused
+- [ ] IME composition handled (no navigation during typing)
 - [ ] Editor count telemetry logs in dev console
-- [ ] Tested with 20-30 blocks on desktop
-- [ ] Tested on iOS Safari (IME, toolbar, scroll)
-- [ ] Tested on Android Chrome (IME, keyboard)
+- [ ] HTML is sanitized on every save/paste (DOMPurify)
+- [ ] Links with target="_blank" have rel="noopener noreferrer"
+- [ ] Paste multi-paragraph content → creates multiple blocks
 - [ ] ResizeObserver still works for height tracking
 - [ ] FullscreenModal renders all stack blocks correctly
+
+**Mobile verification:**
+
+- [ ] iOS Safari: typing, IME, toolbar, scroll
+- [ ] Android Chrome: typing, IME, keyboard
+- [ ] Touch: tap to focus, tap to drag (when blur)
+- [ ] Scroll: no bounce while typing
 
 ---
 
@@ -1018,4 +1148,12 @@ return (
 
 ## Version History
 
+- **v1.1** (2025-10-12): Production-ready refinements
+  - Enhanced HTML sanitizer with FORBID_TAGS and link security
+  - Improved CanvasKeymap with endOfTextblock for robust boundaries
+  - Added list semantics clarification (Option A behavior)
+  - Added paste splitter as Phase 1 must-have
+  - Added Correctness Nits section (history depth, placeholder CSS, IME)
+  - Added Phase 1 Go/No-Go Checklist
+  - Emphasized critical sections with ⭐ markers
 - **v1.0** (2025-10-12): Initial plan with Phase 1 and Phase 2 details

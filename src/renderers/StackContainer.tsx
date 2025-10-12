@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { NodeResizeControl, Position, ResizeControlVariant } from '@xyflow/react'
+import FullscreenModal from './FullscreenModal'
 
 type Props = {
   id: string
@@ -15,8 +17,17 @@ type Props = {
 
 export default function StackContainer({ id, data, selected }: Props) {
   const { onResizeStart, onResize, onResizeEnd } = data
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   return (
+    <>
+      <FullscreenModal isOpen={isFullscreen} onClose={() => setIsFullscreen(false)} title="Stack">
+        <div style={{ padding: '20px', color: '#666', fontSize: '14px' }}>
+          Fullscreen content placeholder - TipTap editor will go here
+        </div>
+      </FullscreenModal>
+
+      {/* Normal stack container view */}
     <div
       style={{
         width: '100%',
@@ -53,45 +64,86 @@ export default function StackContainer({ id, data, selected }: Props) {
         onResizeEnd={() => onResizeEnd?.(id)}
       />
       <div
-        className="stack-drag-handle"
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
-          opacity: 1,
-          pointerEvents: 'auto',
-          cursor: 'grab',
-          padding: '8px',
-          borderRadius: 3,
-          transition: 'all 0.15s ease',
-          userSelect: 'none',
-        }}
-        role="button"
-        tabIndex={-1}
-        onMouseDown={(e) => {
-          // prevent text selection but let ReactFlow detect drag handle
-          e.preventDefault()
-          const el = e.currentTarget as HTMLElement
-          el.style.cursor = 'grabbing'
-        }}
-        onMouseUp={(e) => {
-          const el = e.currentTarget as HTMLElement
-          el.style.cursor = 'grab'
+          justifyContent: 'space-between',
+          width: '100%',
         }}
       >
-        <span style={{ fontSize: 10, lineHeight: 1, color: '#888' }}>⋮⋮</span>
-        <span
+        <div
+          className="stack-drag-handle"
           style={{
-            fontSize: 9,
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            color: '#666',
-            fontWeight: 500,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            opacity: 1,
+            pointerEvents: 'auto',
+            cursor: 'grab',
+            padding: '8px',
+            borderRadius: 3,
+            transition: 'all 0.15s ease',
+            userSelect: 'none',
+          }}
+          role="button"
+          tabIndex={-1}
+          onMouseDown={(e) => {
+            // prevent text selection but let ReactFlow detect drag handle
+            e.preventDefault()
+            const el = e.currentTarget as HTMLElement
+            el.style.cursor = 'grabbing'
+          }}
+          onMouseUp={(e) => {
+            const el = e.currentTarget as HTMLElement
+            el.style.cursor = 'grab'
           }}
         >
-          STACK
-        </span>
+          <span style={{ fontSize: 10, lineHeight: 1, color: '#888' }}>⋮⋮</span>
+          <span
+            style={{
+              fontSize: 9,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              color: '#666',
+              fontWeight: 500,
+            }}
+          >
+            STACK
+          </span>
+        </div>
+
+        {/* Maximize button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsFullscreen(true)
+          }}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '8px',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#666',
+            fontSize: '16px',
+            marginRight: '8px',
+            transition: 'background-color 0.15s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#f3f4f6'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent'
+          }}
+          title="Maximize"
+        >
+          ⛶
+        </button>
       </div>
     </div>
+    </>
   )
 }

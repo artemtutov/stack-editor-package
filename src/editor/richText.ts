@@ -23,6 +23,30 @@ export function ensureJsonContent(json?: JSONContent | null): JSONContent {
   return json
 }
 
+/**
+ * Removes trailing empty paragraphs from a document.
+ * This cleans up legacy content that may have trailing paragraphs from previous saves.
+ * Only removes empty paragraphs at the end; preserves user-created empty blocks.
+ */
+export function cleanTrailingParagraphs(json: JSONContent): JSONContent {
+  const cleaned = ensureJsonContent(json)
+  if (!cleaned.content || cleaned.content.length === 0) return cleaned
+
+  let content = [...(cleaned.content as any[])]
+
+  // Keep removing trailing empty paragraphs until we hit content or reach minimum
+  while (content.length > 1) {
+    const lastNode = content[content.length - 1]
+    if (lastNode?.type === 'paragraph' && (!lastNode.content || lastNode.content.length === 0)) {
+      content = content.slice(0, -1)
+    } else {
+      break
+    }
+  }
+
+  return { ...cleaned, content }
+}
+
 export function htmlToJson(html: string): JSONContent {
   const json = generateJSON(html || '', createEditorExtensions())
   return ensureJsonContent(json)

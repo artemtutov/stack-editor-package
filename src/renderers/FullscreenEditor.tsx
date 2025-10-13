@@ -33,7 +33,11 @@ export type FullscreenEditorProps = {
 }
 
 export default function FullscreenEditor({ doc, onCancel, onSave }: FullscreenEditorProps) {
-  const extensions = React.useMemo(() => createEditorExtensions({ placeholder: "Type '/' for commands", includeSlashMenu: true }), [])
+  const extensions = React.useMemo(() => createEditorExtensions({
+    placeholder: "Type '/' for commands",
+    includeSlashMenu: true,
+    includeTrailingNode: true  // Fullscreen editor needs trailing node
+  }), [])
 
   const editor = useEditor({
     extensions,

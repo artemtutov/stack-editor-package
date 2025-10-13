@@ -38,7 +38,11 @@ const FALLBACK_DOC: JSONContent = {
 
 export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave }: FullscreenStackEditorProps) {
   const { doc } = useMemo(() => blocksToDoc(blocks), [blocks])
-  const extensions = useMemo(() => createEditorExtensions({ placeholder: "Type '/' for commands", includeSlashMenu: true }), [])
+  const extensions = useMemo(() => createEditorExtensions({
+    placeholder: "Type '/' for commands",
+    includeSlashMenu: true,
+    includeTrailingNode: true  // Fullscreen editor needs trailing node for adding blocks
+  }), [])
 
   const editor = useEditor({
     extensions,
@@ -215,7 +219,21 @@ export function blocksToDoc(blocks: Array<{ id: string; content: RichTextPayload
 function stripBlockId(json: JSONContent): JSONContent {
   const j = ensureJsonContent(json)
   if (!j.content || j.content.length === 0) return j
-  const top = { ...(j.content[0] as any) }
+
+  let content = [...(j.content as any[])]
+
+  // Remove trailing empty paragraph (from TrailingNode or TipTap's default behavior)
+  // Keep removing while the last node is an empty paragraph
+  while (content.length > 1) {
+    const lastNode = content[content.length - 1]
+    if (lastNode?.type === 'paragraph' && (!lastNode.content || lastNode.content.length === 0)) {
+      content = content.slice(0, -1)
+    } else {
+      break
+    }
+  }
+
+  const top = { ...content[0] }
   if (top.attrs && 'blockId' in top.attrs) {
     const { blockId, ...rest } = top.attrs
     top.attrs = Object.keys(rest).length ? rest : undefined
@@ -256,7 +274,7 @@ export function docToBlocks(doc: JSONContent): Array<{ id?: string; content: Ric
 
       return { id, content: { json, html } }
     })
-    .filter((block): block is { id?: string; content: RichTextPayload } => block !== null)
+    .filter((block): block is NonNullable<typeof block> => block !== null)
 
   // If all nodes were filtered out, return empty payload
   return results.length > 0 ? results : [{ content: createEmptyPayload() }]

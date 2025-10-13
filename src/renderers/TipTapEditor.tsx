@@ -6,7 +6,7 @@ import { CanvasKeymap } from '../extensions/CanvasKeymap'
 import { splitPastedContent } from '../utils/paste'
 import { incrementEditorCount, decrementEditorCount } from '../utils/editorTelemetry'
 import { createEditorExtensions } from '../editor/extensions'
-import { htmlToJson, jsonToHtml, ensureJsonContent } from '../editor/richText'
+import { htmlToJson, jsonToHtml, ensureJsonContent, cleanTrailingParagraphs } from '../editor/richText'
 import { sanitizeAndSave } from '../utils/sanitizeHTML'
 
 export type TipTapEditorProps = {
@@ -46,7 +46,11 @@ export default function TipTapEditor({
 }: TipTapEditorProps) {
   const editorRef = useRef<Editor | null>(null)
 
-  const baseExtensions = useMemo(() => createEditorExtensions({ placeholder, includeSlashMenu: false }), [placeholder])
+  const baseExtensions = useMemo(() => createEditorExtensions({
+    placeholder,
+    includeSlashMenu: false,
+    singleBlock: true  // Individual block editors use single-block schema (prevents trailing paragraphs)
+  }), [placeholder])
 
   const extensions = useMemo(
     () => [
@@ -66,7 +70,7 @@ export default function TipTapEditor({
 
   const editor = useEditor({
     extensions,
-    content: ensureJsonContent(contentJson),
+    content: cleanTrailingParagraphs(ensureJsonContent(contentJson)),
     autofocus: autoFocus ? 'end' : false,
     onCreate: ({ editor }) => {
       editorRef.current = editor
@@ -149,7 +153,7 @@ export default function TipTapEditor({
   useEffect(() => {
     if (!editor) return
     const current = ensureJsonContent(editor.getJSON())
-    const incoming = ensureJsonContent(contentJson)
+    const incoming = cleanTrailingParagraphs(ensureJsonContent(contentJson))
     if (JSON.stringify(current) !== JSON.stringify(incoming)) {
       editor.commands.setContent(incoming, { emitUpdate: false })
     }

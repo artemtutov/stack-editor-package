@@ -1,4 +1,5 @@
 import StarterKit from '@tiptap/starter-kit'
+import Document from '@tiptap/extension-document'
 import Underline from '@tiptap/extension-underline'
 import Highlight from '@tiptap/extension-highlight'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -14,6 +15,8 @@ import type { Extensions } from '@tiptap/core'
 export type ExtensionFactoryOptions = {
   placeholder?: string
   includeSlashMenu?: boolean
+  includeTrailingNode?: boolean
+  singleBlock?: boolean
 }
 
 const DEFAULT_PLACEHOLDER = "Type '/' for commands"
@@ -23,13 +26,22 @@ const DEFAULT_PLACEHOLDER = "Type '/' for commands"
  */
 export function createEditorExtensions(options?: ExtensionFactoryOptions): Extensions {
   const placeholderText = options?.placeholder ?? DEFAULT_PLACEHOLDER
+  const includeTrailingNode = options?.includeTrailingNode ?? false
+  const singleBlock = options?.singleBlock ?? false
 
   const base: Extensions = [
+    // Add single-block Document for individual block editors (prevents trailing paragraphs)
+    // Default Document (block+) allows multiple top-level nodes - used in fullscreen
+    ...(singleBlock
+      ? [Document.extend({ content: 'block' })]
+      : []),
     StarterKit.configure({
       heading: {
         levels: [1, 2, 3],
       },
       codeBlock: false,
+      // Disable default Document if using single-block schema
+      document: singleBlock ? false : undefined,
     }),
     Underline,
     Highlight,
@@ -48,15 +60,31 @@ export function createEditorExtensions(options?: ExtensionFactoryOptions): Exten
     }),
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     Placeholder.configure({
-      placeholder: placeholderText,
+      placeholder: ({ editor }) => {
+        const doc = editor.state.doc
+        // Only show placeholder if document is truly empty
+        // (single empty paragraph or completely empty)
+        if (doc.childCount === 1) {
+          const firstChild = doc.firstChild
+          if (firstChild?.type.name === 'paragraph' && firstChild.content.size === 0) {
+            return placeholderText
+          }
+        }
+        return ''
+      },
       showOnlyWhenEditable: true,
     }),
-    TrailingNode.configure({ node: 'paragraph' }),
     BlockIdentity,
   ]
 
+  // Add TrailingNode only for fullscreen/multi-block editors
+  // Individual block editors don't need it (causes unnecessary whitespace)
+  if (includeTrailingNode) {
+    base.push(TrailingNode.configure({ node: 'paragraph' }))
+  }
+
   // Optional slash commands (Suggestion-based). Enabled only when requested.
   // Slash commands via @tiptap/suggestion can be added here when available.
-  
+
   return base
 }

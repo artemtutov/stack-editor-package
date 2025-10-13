@@ -5,14 +5,15 @@ import {
   getPreviousBlockInStack,
   getPreviousBlockByY,
   getNextBlockByY,
-  isLastInStack
+  isLastInStack,
 } from '../logic/stackState'
 import type { NodeRefsMap } from './useBlockOperations'
+import type { RichTextPayload } from '../types'
 
 export type UseKeyboardNavOptions = {
   nodesRef: React.MutableRefObject<Node[]>
   nodeRefsMap: React.MutableRefObject<NodeRefsMap>
-  addBelow: (nodeId: string) => void
+  addBelow: (nodeId: string, initialContent?: RichTextPayload) => void
 }
 
 export type UseKeyboardNavResult = {

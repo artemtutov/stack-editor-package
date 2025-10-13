@@ -1,0 +1,49 @@
+.tt-shell {
+  --tt-toolbar-height: 44px;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--tt-bg-color, #fff);
+  color: var(--tt-theme-text, #111827);
+}
+
+.tt-shell .tt-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.tt-shell .tt-content {
+  flex: 1;
+  display: flex;
+  overflow: auto;
+}
+
+.tt-shell .tt-content .tiptap {
+  max-width: 680px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 24px 20vh;
+}
+
+.tt-shell .tiptap .ProseMirror {
+  outline: none;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  color: inherit;
+}
+
+.tt-shell .tiptap .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+@media (max-width: 480px) {
+  .tt-shell .tt-content .tiptap {
+    padding: 16px 16px 20vh;
+  }
+}

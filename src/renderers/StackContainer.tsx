@@ -1,6 +1,10 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { NodeResizeControl, Position, ResizeControlVariant } from '@xyflow/react'
 import FullscreenModal from './FullscreenModal'
+import FullscreenStackEditor from './FullscreenStackEditor'
+import type { BlockData, RichTextPayload } from '../types'
+import { ensureJsonContent, jsonToHtml } from '../editor/richText'
+import { sanitizeAndSave } from '../utils/sanitizeHTML'
 
 type Props = {
   id: string
@@ -11,29 +15,75 @@ type Props = {
     onResizeStart?: (containerId: string, side: 'left' | 'right') => void
     onResize?: (containerId: string, newWidth: number) => void
     onResizeEnd?: (containerId: string) => void
+    getStackBlocks?: () => any[]
+    replaceStackContent?: (stackId: string, blocks: Array<{ id?: string; content: RichTextPayload }>) => void
   }
   selected?: boolean
 }
 
 export default function StackContainer({ id, data, selected }: Props) {
   const { onResizeStart, onResize, onResizeEnd } = data
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [fullscreenState, setFullscreenState] = useState<null | { stackId: string; blocks: Array<{ id: string; content: RichTextPayload }> }>(null)
+
+  const handleOpenFullscreen = useCallback(() => {
+    if (!data.getStackBlocks) return
+    const nodes = data.getStackBlocks()
+    if (!nodes?.length) return
+    const ordered = nodes
+      .filter((node: any) => node.type !== 'stackContainer')
+      .sort((a: any, b: any) => (a.data?.insertionOrder ?? 0) - (b.data?.insertionOrder ?? 0))
+
+    const stackId = data.stackId ?? (ordered[0]?.data?.stackId as string | undefined)
+    if (!stackId) return
+
+    const blocks = ordered.map((node: any) => {
+      const blockData = node.data as BlockData
+      const json = ensureJsonContent(blockData.contentJson)
+      const html = sanitizeAndSave(blockData.cachedHTML ?? jsonToHtml(json))
+      return {
+        id: node.id as string,
+        content: { json, html },
+      }
+    })
+
+    setFullscreenState({ stackId, blocks })
+  }, [data])
+
+  const handleCancelFullscreen = useCallback(() => {
+    setFullscreenState(null)
+  }, [])
+
+  const handleSaveFullscreen = useCallback(
+    (blocksIn: Array<{ id?: string; content: RichTextPayload }>) => {
+      if (!fullscreenState) return
+      if (data.replaceStackContent && fullscreenState.stackId) {
+        data.replaceStackContent(fullscreenState.stackId, blocksIn)
+      }
+      setFullscreenState(null)
+    },
+    [data, fullscreenState]
+  )
 
   return (
     <>
-      <FullscreenModal isOpen={isFullscreen} onClose={() => setIsFullscreen(false)} title="Stack">
-        <div style={{ padding: '20px', color: '#666', fontSize: '14px' }}>
-          Fullscreen content placeholder - TipTap editor will go here
-        </div>
+      <FullscreenModal isOpen={!!fullscreenState} onClose={handleCancelFullscreen} title="Stack">
+        {fullscreenState && (
+          <FullscreenStackEditor
+            isOpen
+            blocks={fullscreenState.blocks}
+            onCancel={handleCancelFullscreen}
+            onSave={handleSaveFullscreen}
+          />
+        )}
       </FullscreenModal>
 
       {/* Normal stack container view */}
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        background: 'white',
-        border: selected ? '2px solid rgba(35, 131, 226, 1)' : '1px solid #d1d5db',
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          background: 'white',
+          border: selected ? '2px solid rgba(35, 131, 226, 1)' : '1px solid #d1d5db',
         borderRadius: 4,
         boxShadow: 'none',
         padding: 0,
@@ -116,7 +166,7 @@ export default function StackContainer({ id, data, selected }: Props) {
         <button
           onClick={(e) => {
             e.stopPropagation()
-            setIsFullscreen(true)
+            handleOpenFullscreen()
           }}
           style={{
             background: 'transparent',
@@ -143,7 +193,7 @@ export default function StackContainer({ id, data, selected }: Props) {
           ⛶
         </button>
       </div>
-    </div>
+      </div>
     </>
   )
 }

@@ -2,12 +2,13 @@ import { ReactFlow, Background, Controls, MiniMap, ReactFlowProvider } from '@xy
 import '@xyflow/react/dist/style.css'
 import { StackEditor } from '../src'
 import '../src/styles/block-editor.css'
+import '../src/styles/fullscreen-editor.scss'
 
 export default function App() {
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
       <ReactFlowProvider>
-        <StackEditor initialBlocks={[{ text: '' }]}>
+        <StackEditor initialBlocks={[{ html: '<p></p>' }]}>
           {({ nodes, nodeTypes, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onMove }) => (
             <ReactFlow
               nodes={nodes}

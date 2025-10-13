@@ -7,6 +7,70 @@ This document outlines the phased approach to integrating TipTap rich text editi
 - **Phase 1**: Simple MVP with production-ready foundations (~2-3 days)
 - **Phase 2**: Production optimizations for 200+ blocks (~1-2 weeks)
 
+
+### Implementation Contract: Fullscreen TipTap ↔ Stack Blocks
+
+**Purpose:** Eliminate ambiguity about how the fullscreen editor integrates with the canvas stacks. This section defines scope, wiring, acceptance criteria, and tests. *Do not* create demo routes; integrate with the existing stack flow only.
+
+#### Scope (Hard)
+- **Fullscreen only:** The “Simple-style” experience (toolbar, popovers, typography) is used **only** in the fullscreen modal with a **single TipTap instance**.
+- **Canvas cards:** Use the **same extensions** as fullscreen but with a **micro-UI** (no heavy toolbar/popovers). Persist **TipTap JSON** per block; `cachedHTML` is derived for read-only.
+- **No demo routes:** Do **not** add a separate page/route to showcase the editor. All validation happens via the Stack → Fullscreen flow.
+
+#### Data flow & wiring
+- **Entry:** From the stack UI, open fullscreen with a `stackId`.
+- **Assemble (open):** `blocksToDoc(stackId)` concatenates the ordered blocks into a single TipTap doc. Carry a stable `blockId` on each **top-level node** for diffing.
+- **Save (close):** `docToBlocks(doc)` diffs by `blockId` and calls `replaceStackContent(stackId, updatedBlocks)` (create/update/delete/reorder). **Layout (x,y, w,h) is unchanged.**
+- **Source of truth:** Each block stores `contentJson` (TipTap JSON) + `schemaVersion`; `cachedHTML` is for read-only rendering only.
+
+#### Schema parity (Single extension set)
+- A single factory (e.g., `createEditorExtensions()`) is used by **both** canvas and fullscreen editors.
+- **Include:** StarterKit (with History), Underline, Highlight, Link (with `validate` + default `rel="noopener noreferrer"` policy), TextAlign (restricted to `heading`/`paragraph`), Placeholder, TrailingNode.
+- **Optional (flagged off by default):** TaskList/TaskItem, Image.
+- Lock versions to avoid schema drift; bump `schemaVersion` on breaking updates.
+
+#### Identity & invariants
+- Each app block has a stable `id` (uuid).
+- In fullscreen, every **top-level doc node** carries a `blockId` (matching the app block `id`) to enable stable diffing and reorders.
+- **Block unit (Phase 1–2):** one block = one **top-level node** (paragraph/heading/blockquote/**whole list**). Do not use “one list item per block” at this stage.
+
+#### Keyboard & interaction policy
+- **Canvas editors:** Use `CanvasKeymap` semantics: Enter at end → new block below (except inside lists), Backspace at start → merge up, ArrowUp/Down at edges → move focus, Tab navigates outside lists (inside lists, indent/outdent as default).
+- **Fullscreen:** Standard document behavior (no canvas navigation rules).
+- **Drag vs edit:** While any editor is focused, card dragging/panning is disabled; allow dragging only via a handle outside the editor.
+
+#### CSS & theming
+- Scope all fullscreen styles under a single shell class (e.g., `.tt-shell .tiptap`) to prevent bleed into the canvas.
+- Support light/dark via CSS variables. Add safe-area insets for mobile (e.g., `env(safe-area-inset-*)`).
+
+#### Acceptance criteria (Definition of Done)
+1. Opening a real stack mounts **one** fullscreen TipTap editor composed from the stack’s blocks, in order.
+2. Closing with **Save** performs `doc → blocks` diff by `blockId`, updating content and order without changing canvas layout.
+3. Closing with **Cancel** makes **no** content/layout changes.
+4. H1 ↔ H2 changes, paragraph ↔ list, and blockquote edits **round-trip losslessly** between canvas and fullscreen.
+5. Multi-paragraph paste in fullscreen splits back into multiple blocks correctly on Save.
+6. Links are validated and persisted with secure defaults (`https:`/`mailto:`, `rel="noopener noreferrer"` when `target="_blank"`).
+7. History depth is bounded (e.g., ~100) and TrailingNode is present to avoid cursor dead-ends.
+8. No stylesheet bleed: fullscreen typography/toolbar styles affect only `.tt-shell`.
+9. Canvas and fullscreen use the **same extension set**; schema versions match.
+10. Mobile: toolbar remains usable with IME; no canvas pan/zoom while editing.
+
+#### Out of scope (explicitly excluded)
+- Creating a separate demo route or page for the editor.
+- Importing the template app shell, global resets/scrollbar hacks, animation system, or block drag handle that conflicts with canvas drag.
+- Images, code highlighting, and text color pickers (unless explicitly enabled with infra).
+
+#### Test checklist (must pass before merge)
+- **Round-trip:** blocks → doc → blocks equality across headings, lists, blockquote, and paragraph.
+- **Reorder:** reorder blocks in fullscreen, Save → canvas reflects new order; `id`/`blockId` unchanged.
+- **Paste:** multi-paragraph paste in fullscreen becomes multiple blocks on Save.
+- **IME:** iOS Safari and Android Chrome typing, Backspace/Enter, selection with on-screen keyboard.
+- **No bleed:** inspecting canvas cards shows no unintended typography from `.tt-shell`.
+
+#### Rollback plan
+- Keep the previous fullscreen path behind a feature flag until this contract passes all tests.
+- If Save fails, discard changes and fall back to existing block state.
+
 ---
 
 ## Phase 1: MVP with Production-Ready Foundations

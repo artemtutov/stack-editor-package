@@ -158,39 +158,6 @@
   box-shadow: none !important;
 }
 
-/* Textarea - seamless integration */
-.notion-block textarea {
-  width: 100%;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 14px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  color: rgb(55, 53, 47);
-  resize: none;
-  padding: 4px 2px 0 4px;
-  overflow: hidden;
-  min-height: 24px;
-  box-sizing: border-box;
-}
-
-.notion-block textarea::placeholder {
-  color: rgba(55, 53, 47, 0.375);
-  font-weight: 400;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-}
-
-/* Placeholder for empty blocks */
-.notion-block .is-empty::before {
-  content: attr(data-placeholder);
-  float: left;
-  height: 0;
-  pointer-events: none;
-  color: rgba(55, 53, 47, 0.4);
-}
-
 /* Drop zone indicator */
 .drop-indicator {
   position: absolute;

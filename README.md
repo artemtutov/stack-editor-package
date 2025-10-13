@@ -27,7 +27,7 @@ import '@stack-editor/react/styles.css'
 function App() {
   return (
     <ReactFlowProvider>
-      <StackEditor initialBlocks={[{ text: 'Start typing...' }]}>
+      <StackEditor initialBlocks={[{ html: '<p>Start typing...</p>' }]}>
         {({ nodes, nodeTypes, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onMove }) => (
           <ReactFlow
             nodes={nodes}
@@ -53,7 +53,7 @@ function App() {
 ```tsx
 interface StackEditorProps {
   // Initial blocks to render
-  initialBlocks?: Array<{ id?: string; text?: string }>
+  initialBlocks?: Array<{ id?: string; html?: string }>
 
   // Customize block renderer
   renderBlock?: (props: NodeProps) => React.ReactNode
@@ -86,7 +86,7 @@ For more control, use the hook directly:
 import { useStackEditor } from '@stack-editor/react'
 
 const editor = useStackEditor({
-  initialBlocks: [{ text: 'Hello' }],
+  initialBlocks: [{ html: '<p>Hello</p>' }],
   options: { blockWidth: 250 }
 })
 

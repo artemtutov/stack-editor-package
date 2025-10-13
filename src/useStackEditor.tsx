@@ -10,6 +10,7 @@ import type {
   StackEditorHookResult,
   InitialBlock,
   StackEditorOptions,
+  RichTextPayload,
 } from './types'
 import { useStackLayout } from './hooks/useStackLayout'
 import { useStackDrag } from './hooks/useStackDrag'
@@ -17,6 +18,8 @@ import { useBlockOperations, type NodeRefsMap } from './hooks/useBlockOperations
 import { useKeyboardNav, useTabHandlers } from './hooks/useKeyboardNav'
 import { nextBlockId, nextStackId } from './logic/stackState'
 import { updateBottomNodeFlags } from './logic/stackLayout'
+import { sanitizeAndSave } from './utils/sanitizeHTML'
+import { createEmptyPayload, htmlToJson, jsonToHtml, ensureJsonContent, CURRENT_SCHEMA_VERSION } from './editor/richText'
 
 // Default options
 const DEFAULTS: Required<StackEditorOptions> = {
@@ -255,12 +258,25 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                 onResizeStart: onContainerResizeStart,
                 onResize: onContainerResize,
                 onResizeEnd: onContainerResizeEnd,
+                getStackBlocks: () => {
+                  const stackId = (n.data as any)?.stackId
+                  if (!stackId) return []
+                  return nodesRef.current
+                    .filter((node: any) => node.type !== 'stackContainer' && node.data?.stackId === stackId)
+                    .sort(
+                      (a: any, b: any) => (a.data?.insertionOrder ?? 0) - (b.data?.insertionOrder ?? 0)
+                    )
+                },
+                replaceStackContent: (
+                  stackId: string,
+                  blocks: Array<{ id?: string; content: RichTextPayload }>
+                ) => blockOps.replaceStackContent(stackId, blocks),
               },
             }
           : n
       )
     },
-    [onContainerResizeStart, onContainerResize, onContainerResizeEnd]
+    [onContainerResizeStart, onContainerResize, onContainerResizeEnd, blockOps]
   )
 
   // Populate ref for use in early callbacks
@@ -302,15 +318,33 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   useEffect(() => {
     if (nodesRef.current.length > 0) return
 
-    const initial: InitialBlock[] = args?.controlled?.value ?? args?.initialBlocks ?? [{ text: '' }]
+    const initial: InitialBlock[] =
+      args?.controlled?.value ?? args?.initialBlocks ?? [{}]
+
+    const resolvePayload = (blk: InitialBlock): RichTextPayload => {
+      if (blk.contentJson) {
+        const json = ensureJsonContent(blk.contentJson)
+        const html = sanitizeAndSave(jsonToHtml(json))
+        return { json, html }
+      }
+      if (blk.html !== undefined) {
+        const json = htmlToJson(blk.html)
+        const html = sanitizeAndSave(blk.html)
+        return { json, html }
+      }
+      return createEmptyPayload()
+    }
 
     const created: Node[] = initial.map((blk, idx) => {
       const id = blk.id ?? nextBlockId()
       if (!nodeRefsMap.current[id]) nodeRefsMap.current[id] = { current: null }
       const x = 100
       const y = 100 + idx * 28
+      const payload = resolvePayload(blk)
       const data: BlockData = {
-        text: blk.text ?? '',
+        contentJson: payload.json,
+        cachedHTML: payload.html,
+        schemaVersion: CURRENT_SCHEMA_VERSION,
         height: 24,
         insertionOrder: idx,
         isBottomNode: idx === initial.length - 1,
@@ -337,9 +371,14 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       ...n,
       data: {
         ...(n.data as BlockData),
-        onChange: (txt: string) =>
-          setNodes((inner) => inner.map((ni: any) => (ni.id === n.id ? { ...ni, data: { ...ni.data, text: txt } } : ni))),
-        onAdd: () => blockOps.addBelow(n.id),
+        onContentUpdate: (payload) =>
+          setNodes((inner) => inner.map((ni: any) => (ni.id === n.id ? { ...ni, data: {
+                ...(ni.data as BlockData),
+                contentJson: ensureJsonContent(payload.json),
+                cachedHTML: sanitizeAndSave(payload.html),
+                schemaVersion: CURRENT_SCHEMA_VERSION,
+              } } : ni))),
+        onAdd: (initialContent?: RichTextPayload) => blockOps.addBelow(n.id, initialContent),
         onHeightChange: handleHeightChange,
         onTabNext: (id: string) => tabHandlers.current.handleTabNext?.(id),
         onTabPrev: (id: string) => tabHandlers.current.handleTabPrev?.(id),

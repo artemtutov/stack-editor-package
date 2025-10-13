@@ -1,16 +1,24 @@
 import type { Node, NodeTypes } from '@xyflow/react'
+import type { JSONContent } from '@tiptap/core'
 
 export type BlockId = string
 
+export type RichTextPayload = {
+  json: JSONContent
+  html: string
+}
+
 export type BlockData = {
-  text: string
+  contentJson: JSONContent
+  cachedHTML?: string
+  schemaVersion: number
   stackId?: string
   height?: number
   insertionOrder?: number
   isBottomNode?: boolean
   // callbacks populated by the hook; included here for convenience typing
-  onChange?: (text: string) => void
-  onAdd?: () => void
+  onContentUpdate?: (payload: RichTextPayload) => void
+  onAdd?: (initialContent?: RichTextPayload) => void
   onHeightChange?: (id: string, height: number) => void
   onTabNext?: (id: string) => void
   onTabPrev?: (id: string) => void
@@ -18,7 +26,7 @@ export type BlockData = {
   onArrowDown?: (id: string) => void
   onSlashCommand?: (id: string, rect?: DOMRect | null) => void
   onDelete?: (id: string) => void
-  onSplit?: (id: string, before: string, after: string) => void
+  onSplit?: (id: string, before: RichTextPayload, after: RichTextPayload) => void
   onMergeUp?: (id: string) => void
   focusRef?: { current: null | { focus: () => void; setCaretToEnd?: () => void; setCaretAt?: (pos: number) => void } }
   placeholder?: string
@@ -38,7 +46,8 @@ export type StackEditorOptions = {
 
 export type InitialBlock = {
   id?: string
-  text?: string
+  contentJson?: JSONContent
+  html?: string
 }
 
 export type StackEditorValue = InitialBlock[]
@@ -65,8 +74,8 @@ export type StackEditorHookResult = {
   onMove: (_evt: any, viewport: { x: number; y: number; zoom: number }) => void
   // helpers
   focus: (blockId: string) => void
-  addBelow: (blockId: string) => void
-  split: (blockId: string, before: string, after: string) => void
+  addBelow: (blockId: string, initialContent?: RichTextPayload) => void
+  split: (blockId: string, before: RichTextPayload, after: RichTextPayload) => void
   delete: (blockId: string) => void
   // overlays to render alongside ReactFlow
   overlays: React.ReactNode

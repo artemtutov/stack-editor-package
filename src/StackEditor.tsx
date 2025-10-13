@@ -7,6 +7,7 @@ import type { StackEditorHookArgs, StackEditorHookResult } from './types'
 
 // Import CSS once from the wrapper (or consumer can import directly)
 import './styles/block-editor.css'
+import './styles/tiptap-basic.css'
 
 export type StackEditorSlots = {
   renderBlock?: any

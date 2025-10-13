@@ -10,6 +10,11 @@ export default defineConfig(({ mode }) => {
     return {
       plugins: [react()],
       root: './demo',
+      resolve: {
+        alias: {
+          '@': resolve(__dirname, './src')
+        }
+      },
       build: {
         outDir: '../dist-demo'
       }
@@ -26,6 +31,11 @@ export default defineConfig(({ mode }) => {
         rollupTypes: true
       })
     ],
+    resolve: {
+      alias: {
+        '@': resolve(__dirname, './src')
+      }
+    },
     build: {
       lib: {
         entry: resolve(__dirname, 'src/index.ts'),

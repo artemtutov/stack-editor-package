@@ -5,6 +5,10 @@ import type { Node } from '@xyflow/react'
  */
 let globalIdCounter = 0
 export function nextBlockId(): string {
+  const globalCrypto = typeof globalThis !== 'undefined' ? (globalThis.crypto as Crypto | undefined) : undefined
+  if (globalCrypto?.randomUUID) {
+    return globalCrypto.randomUUID()
+  }
   return `block_${globalIdCounter++}`
 }
 
@@ -136,11 +140,11 @@ export function removeBlock(nodeId: string, allNodes: Node[]): Node[] {
 }
 
 /**
- * Update block text
+ * Update block HTML content
  */
-export function updateBlockText(nodeId: string, text: string, allNodes: Node[]): Node[] {
+export function updateBlockHtml(nodeId: string, html: string, allNodes: Node[]): Node[] {
   return allNodes.map((n: any) =>
-    n.id === nodeId ? { ...n, data: { ...n.data, text } } : n
+    n.id === nodeId ? { ...n, data: { ...n.data, html } } : n
   )
 }
 

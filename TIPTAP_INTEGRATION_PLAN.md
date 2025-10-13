@@ -1,3 +1,327 @@
+
+Latest understanding
+
+Here’s the rewritten markdown, updated to the deep-sync + JSON-first approach and cleaned up per our new contract. You can replace your file with this:
+
+⸻
+
+TipTap Integration Plan
+
+Overview
+
+This document defines how we integrate TipTap into the stack editor package and keep canvas blocks in deep sync with a single fullscreen document.
+	•	Phase 1 (Current): Deep-sync fullscreen + JSON-first storage
+	•	Phase 2: Performance, UX polish, and bundle hygiene for 200+ blocks
+
+⸻
+
+Implementation Contract: Fullscreen TipTap ↔ Stack Blocks
+
+Purpose: Fully specify how the fullscreen editor integrates with canvas stacks. No demo routes—use the existing stack flow only.
+
+Scope (Hard)
+	•	Fullscreen only: The “Simple-style” experience (toolbar, popovers, typography) is used only in fullscreen with a single TipTap instance.
+	•	Canvas cards: Use the same extensions as fullscreen but a micro-UI (no heavy toolbar/popovers). Persist TipTap JSON per block; cachedHTML is derived for read-only.
+	•	No demo routes: Do not add a separate page for the editor. All validation occurs via Stack → Fullscreen.
+
+Data flow & wiring
+	•	Entry: From the stack UI, open fullscreen with a stackId.
+	•	Assemble (open): blocksToDoc(stackId) concatenates the ordered blocks into one TipTap doc. Attach a stable blockId to each top-level node for diffing.
+	•	Save (close): docToBlocks(doc) diffs by blockId and calls replaceStackContent(stackId, updatedBlocks) (create/update/delete/reorder). Layout (x,y,w,h) is unchanged.
+	•	Strip identity for storage: When saving per-block JSON, strip transient blockId from nodes; the app-level block id remains the persisted identity.
+	•	Source of truth: Each block stores contentJson (TipTap JSON) + schemaVersion; cachedHTML is for read-only rendering only.
+
+Schema parity (Single extension set)
+	•	A single factory (e.g., createEditorExtensions()) is used by both canvas and fullscreen editors.
+	•	Include: StarterKit (with History), Underline, Highlight, Link (with validate + default rel="noopener noreferrer"), TextAlign (restricted to heading/paragraph), Placeholder, TrailingNode.
+	•	Optional (flagged off by default): TaskList/TaskItem, Image.
+	•	Versioning: Lock versions to avoid schema drift; bump schemaVersion on breaking updates.
+
+Identity & invariants
+	•	Each app block has a stable id (uuid).
+	•	In fullscreen, every top-level doc node carries a blockId (matching the app block id) to enable stable diffing and reorders.
+	•	Block unit (Phase 1–2): one block = one top-level node (paragraph/heading/blockquote/whole list). Do not use “one list item per block” at this stage.
+
+Keyboard & interaction policy
+	•	Canvas editors: CanvasKeymap semantics — Enter at end → new block below (except inside lists), Backspace at start → merge up, ArrowUp/Down at edges → move focus, Tab navigates outside lists (inside lists, indent/outdent as default).
+	•	Fullscreen: Standard document behavior (no canvas navigation rules).
+	•	Drag vs edit: While any editor is focused, card dragging/panning is disabled; allow dragging via a handle outside the editor.
+
+CSS & theming
+	•	Scope all fullscreen styles under a single shell (e.g., .tt-shell .tiptap) to prevent bleed into the canvas.
+	•	Support light/dark via CSS variables. Respect mobile safe-area insets (env(safe-area-inset-*)).
+
+Acceptance criteria (Definition of Done)
+	1.	Opening a real stack mounts one fullscreen TipTap editor composed from the stack’s blocks in order.
+	2.	Save performs doc → blocks diff by blockId, updating content/order without changing canvas layout.
+	3.	Cancel makes no content/layout changes.
+	4.	H1 ↔ H2, paragraph ↔ list, and blockquote edits round-trip losslessly canvas ↔ fullscreen.
+	5.	Multi-paragraph paste in fullscreen becomes multiple blocks on Save.
+	6.	Links are validated; persisted HTML adds rel="noopener noreferrer" for target="_blank".
+	7.	History depth bounded (~100) and TrailingNode present (no cursor dead-ends).
+	8.	No stylesheet bleed outside .tt-shell.
+	9.	Canvas and fullscreen use the same extension set; schema versions match.
+	10.	Mobile: toolbar usable with IME; no canvas pan/zoom while editing.
+
+Out of scope (explicit)
+	•	Separate demo routes/pages.
+	•	Importing the template app shell, global resets/scrollbar hacks, animation system, or block drag handle that conflicts with canvas drag.
+	•	Images, code highlighting, and text color pickers (unless explicitly enabled with infra).
+
+Test checklist (must pass before merge)
+	•	Round-trip: blocks → doc → blocks equality across headings, lists, blockquote, paragraph.
+	•	Reorder: reorders in fullscreen reflect on canvas; id/blockId unchanged.
+	•	Paste: multi-paragraph paste → multiple blocks on Save.
+	•	IME: iOS Safari & Android Chrome typing, Backspace/Enter, selection with on-screen keyboard.
+	•	No bleed: canvas cards show no unintended typography from .tt-shell.
+
+Rollback plan
+	•	Keep the previous fullscreen path behind a feature flag until this contract passes all tests.
+	•	If Save fails, discard changes and fall back to existing block state.
+
+⸻
+
+Phase 1: Deep-Sync Fullscreen + JSON-First (Current)
+
+Goal: Ship a production-ready authoring experience that round-trips losslessly between canvas blocks and a fullscreen document.
+
+1) Shared Extension Set (schema parity)
+
+One factory for both canvas and fullscreen. Versions locked.
+	•	StarterKit with History { depth: 100, newGroupDelay: 500 }
+	•	Underline, Highlight
+	•	Link with validate (allow only https: and mailto:), openOnClick: false in edit; default rel="noopener noreferrer" for target="_blank"
+	•	TextAlign scoped to ['heading','paragraph']
+	•	Placeholder
+	•	TrailingNode (caret-safe trailing paragraph)
+	•	(Fullscreen only, flag) Slash menu via @tiptap/suggestion
+	•	(Optional; off now) TaskList/TaskItem, Image
+
+2) Data Model (source of truth)
+
+Each block persists TipTap JSON; HTML is a derived cache for read-only.
+
+type BlockData = {
+  id: string
+  contentJson: JSONContent        // source of truth
+  cachedHTML?: string             // derived for read-only rendering
+  schemaVersion: number
+  stackId?: string
+  x?: number; y?: number; w?: number; h?: number // layout untouched by editor
+  // other app fields...
+}
+
+	•	Generate/refresh cachedHTML on save; sanitize only the HTML, never the JSON.
+
+3) Block Identity (fullscreen diffing)
+	•	In fullscreen, attach a transient blockId to top-level nodes only (paragraph | heading | blockquote | bulletList | orderedList) to map nodes↔blocks.
+	•	On Save, split doc by top-level nodes, strip blockId, reconcile by app-level id.
+	•	New top-level node (no blockId) ⇒ mint new block id.
+
+4) Fullscreen flow (Stack → Fullscreen → Save/Cancel)
+	•	Open: blocksToDoc(stackId) assembles a doc from ordered blocks and adds blockId to each top node.
+	•	Edit: Single editor instance with sticky toolbar (Bold/Italic/Underline/Highlight, H1–H3, Bullet/Ordered, Blockquote, Text Align, Link, Undo/Redo). Slash menu is fullscreen-only.
+	•	Save: docToBlocks(doc) → { id?: string; contentJson }[] → replaceStackContent(stackId, updates) (create/update/delete/reorder). Layout (x,y,w,h) not touched.
+	•	Cancel: no changes.
+
+5) Canvas editors (micro-UI)
+	•	Use the same extensions (no slash menu/popovers).
+	•	Canvas keymap: Enter at end → new block (except inside lists); Backspace at start → merge up; ArrowUp/Down at boundaries → focus prev/next; Tab navigates unless in lists (where indent/outdent applies).
+	•	Drag vs edit: disable card drag while focused; drag via handle outside the editor.
+	•	Pooling/viewport mounting come in Phase 2.
+
+6) Link & HTML policies
+	•	Links: allow https:/mailto:; deny others. In view mode, anchors navigate; in edit, openOnClick: false.
+	•	Sanitization: sanitize only cachedHTML. Do not sanitize JSON.
+
+7) Acceptance (Phase 1 DoD)
+	•	Round-trip: H1↔H2, paragraph↔list, blockquote survive blocks → doc → blocks with IDs and marks intact.
+	•	Reorder in fullscreen reflects on canvas with same block IDs.
+	•	Multi-paragraph paste in fullscreen splits into multiple blocks on Save.
+	•	No CSS bleed outside .tt-shell. Mobile safe-area respected.
+
+⸻
+
+Phase 2: Production Optimizations
+
+Status note: JSON-first storage, shared extension set (Link/TextAlign/TrailingNode), and fullscreen diffing by blockId are already implemented in Phase 1. Phase 2 focuses on performance, UX polish, and bundle hygiene.
+
+Architecture Improvements
+
+1. Editor Pooling (src/hooks/useEditorPool.ts)
+
+Pool 6–12 reusable TipTap instances; attach/detach as focus moves. Keep active editors ≤ pool size.
+
+2. Cached HTML rendering (derived)
+	•	Ensure every block maintains an up-to-date cachedHTML for read-only rendering.
+	•	Sanitize only the HTML cache; never mutate/sanitize JSON.
+	•	Provide a lightweight HTML renderer matching editor typography.
+
+3. Viewport-Aware Mounting (IntersectionObserver)
+
+Mount editors only for visible blocks (+ buffer). Off-screen blocks render cachedHTML.
+
+4. Debounced Persistence
+
+Buffer onChange with 200–300 ms debounce; batch writes per rAF; autosave snapshots every 10s.
+
+5. Drag-vs-Edit Guards
+
+Disable canvas dragging while an editor is focused; require a handle for drag.
+
+6. Smart Activation
+
+Optional: activate stack on focus but only attach editors for visible blocks; pre-warm on hover.
+
+7. Paste & Split Handler
+
+Fullscreen-first policy: Prefer handling multi-node paste in fullscreen and splitting on Save via doc→blocks. Keep canvas paste logic minimal (prevent “monster blocks” only).
+
+8. Caret Memory
+
+Store { blockId, pos } on blur; restore on focus for seamless navigation.
+
+9. Performance Monitoring
+
+Dev-only counters for active editors, pool usage, and heap snapshots; warn if pool exceeded.
+
+Phase 2 Implementation Steps
+	1.	Create useEditorPool
+	2.	Keep contentJson + cachedHTML model; ensure cache stays fresh
+	3.	Add IntersectionObserver to NotionBlock
+	4.	Consolidate CanvasKeymap (if not already)
+	5.	Wire pooling to NotionBlock
+	6.	Add debounced persistence
+	7.	Implement drag guards
+	8.	Add paste splitter
+	9.	Add caret memory
+	10.	Add performance monitoring
+	11.	Test with 200+ blocks
+	12.	Profile memory; optimize
+	13.	Mobile testing (iOS/Android)
+
+⸻
+
+Warnings & Pitfalls
+
+1. JSON is the source of truth
+
+Do not sanitize or mutate JSON. Only sanitize cachedHTML.
+
+2. Paste explosions
+
+Fullscreen handles multi-node paste; canvas should only prevent “monster blocks.”
+
+3. History memory
+
+Bounded depth per editor; pooling reduces pressure.
+
+4. Tab conflicts
+
+Outside lists: Tab navigates blocks. Inside lists: default indent/outdent.
+
+5. IME/mobile
+
+Guard keymaps during composition; test early on iOS/Android.
+
+6. ReactFlow drag conflicts
+
+Stop pointer events in the editor; disable drag while focused; handle-only drag.
+
+⸻
+
+Testing Strategy
+
+Phase 1 Testing
+
+Functional
+	•	Create block (Enter at end)
+	•	Delete block (Backspace at start + empty)
+	•	Merge blocks (Backspace at start)
+	•	Navigate with Tab/Shift+Tab
+	•	Navigate with Arrow Up/Down
+	•	Bold, italic, underline, highlight
+	•	Headings (H1, H2, H3)
+	•	Lists (bullet, ordered)
+	•	Blockquote
+	•	Paste plain text
+	•	Paste rich text (multi-paragraph)
+	•	Undo/redo within block
+	•	Fullscreen shows one doc assembled from stack (in order)
+	•	Dragging disabled while editing
+
+Performance
+	•	20 blocks (smooth)
+	•	30 blocks (acceptable)
+	•	Measure: time to create 20 blocks
+	•	Measure: time to navigate 20 blocks with Tab
+	•	Check: active editor count/pool in dev logs
+
+Mobile
+	•	iOS Safari: typing, IME, toolbar, scroll
+	•	Android Chrome: typing, IME, keyboard
+	•	Touch: tap to focus, tap handle to drag
+	•	Scroll: no bounce while typing
+
+Security / Sanitization
+	•	cachedHTML is sanitized on persist; JSON is never sanitized
+
+Phase 2 Testing
+
+Performance
+	•	100 blocks (smooth)
+	•	200 blocks (smooth)
+	•	500 blocks (acceptable)
+	•	Memory profiling (no leaks)
+	•	Pool never exceeded
+	•	Viewport mounting works
+
+Functional
+	•	All Phase 1 tests pass
+	•	Caret memory works (blur → focus)
+	•	Hover pre-warm works
+	•	Stack activation/deactivation works
+	•	Multi-block paste becomes multiple blocks
+	•	JSON round-trip is lossless
+
+⸻
+
+Migration (Legacy HTML → JSON)
+
+If migrating older data that stored HTML as source of truth:
+	1.	Convert legacy HTML to JSON (generateJSON) using the exact extension set.
+	2.	Store result in contentJson; copy legacy HTML to cachedHTML.
+	3.	From then on, write JSON and regenerate cachedHTML on persist.
+	4.	After a stable period, drop legacy HTML fields (keep cachedHTML only as a view cache).
+
+⸻
+
+Resources
+	•	TipTap Documentation
+	•	ProseMirror Guide
+	•	DOMPurify Documentation
+	•	Intersection Observer API
+
+⸻
+
+Version History
+	•	v1.2 (2025-10-13): Deep-sync fullscreen & JSON-first
+	•	Rewrote Phase 1 to be JSON-first with fullscreen doc diffing by blockId
+	•	Added storage identity-strip note to the contract
+	•	Retargeted Phase 2 toward pooling, viewport mounting, debounced persistence, bundle/code-split
+	•	v1.1 (2025-10-12): Production-ready refinements
+	•	Enhanced sanitizer and link security for derived HTML
+	•	End-of-textblock keymap improvements
+	•	Paste splitter and Phase 1 Go/No-Go checklist
+	•	v1.0 (2025-10-12): Initial plan with Phase 1 & Phase 2 details
+
+⸻
+
+
+
+OLD PLAN (for reference only)
+
+
 # TipTap Integration Plan
 
 ## Overview

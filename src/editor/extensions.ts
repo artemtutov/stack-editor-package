@@ -4,6 +4,9 @@ import Highlight from '@tiptap/extension-highlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import TextAlign from '@tiptap/extension-text-align'
 import Link from '@tiptap/extension-link'
+// Prefer single-extension package to avoid pulling the whole bundle
+// Switch to this import once the dependency is installed locally:
+// import TrailingNode from '@tiptap/extension-trailing-node'
 import { TrailingNode } from '@tiptap/extensions'
 import { BlockIdentity } from '../extensions/BlockIdentity'
 import type { Extensions } from '@tiptap/core'

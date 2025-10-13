@@ -19,7 +19,7 @@ import { BlockquoteButton } from '../components/tiptap-ui/blockquote-button'
 import { MarkButton } from '../components/tiptap-ui/mark-button'
 import { TextAlignButton } from '../components/tiptap-ui/text-align-button'
 import { LinkPopover, LinkButton } from '../components/tiptap-ui/link-popover'
-import { ThemeToggle } from '../components/tiptap-templates/simple/theme-toggle'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 // Icons
 import { HighlighterIcon } from '../components/tiptap-icons/highlighter-icon'

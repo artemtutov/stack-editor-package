@@ -1,3 +1,7 @@
+/* TipTap required styles */
+@import '../src/styles/_variables.scss';
+@import '../src/styles/_keyframe-animations.scss';
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;

@@ -11,6 +11,7 @@ import {
 } from '../logic/stackState'
 import { ensureInsertionOrder } from '../logic/stackLayout'
 import { createEmptyPayload, mergePayloads, htmlToJson, jsonToHtml, ensureJsonContent, CURRENT_SCHEMA_VERSION } from '../editor/richText'
+import { upgradeContentJson } from '../editor/upgrade'
 import { sanitizeAndSave } from '../utils/sanitizeHTML'
 
 export type BlockCallbacks = {
@@ -56,7 +57,7 @@ export type UseBlockOperationsResult = {
   handleMergeUp: (nodeId: string) => void
   addBelow: (currentNodeId: string, initialContent?: RichTextPayload) => void
   handleSplit: (nodeId: string, before: RichTextPayload, after: RichTextPayload) => void
-  replaceStackContent: (stackId: string, blocks: Array<{ id?: string; content: RichTextPayload }>) => void
+  replaceStackContent: (stackId: string, blocks: Array<{ id?: string; content: RichTextPayload }>) => Array<{ id: string; content: RichTextPayload }>
   createBlockCallbacks: (nodeId: string, stackId: string, setNodes: any) => Partial<BlockCallbacks>
 }
 
@@ -75,7 +76,10 @@ function toPayload(input?: RichTextPayload | string | null): RichTextPayload {
 }
 
 function blockDataToPayload(data: BlockData): RichTextPayload {
-  const json = ensureJsonContent(data.contentJson)
+  const baseJson = ensureJsonContent(data.contentJson)
+  const json = data.schemaVersion !== CURRENT_SCHEMA_VERSION
+    ? ensureJsonContent(upgradeContentJson(baseJson, data.schemaVersion, CURRENT_SCHEMA_VERSION))
+    : baseJson
   const html = sanitizeAndSave(data.cachedHTML ?? jsonToHtml(json))
   return { json, html }
 }
@@ -444,6 +448,7 @@ export function useBlockOperations(
 
   const replaceStackContent = useCallback(
     (stackId: string, blocksIn: Array<{ id?: string; content: RichTextPayload }>) => {
+      let result: Array<{ id: string; content: RichTextPayload }> = []
       setNodes((nds) => {
         const normalized = blocksIn.map(({ id, content }) => ({ id, payload: toPayload(content) }))
         const container = nds.find((n) => n.id === stackId && n.type === 'stackContainer')
@@ -465,6 +470,7 @@ export function useBlockOperations(
             // Update order
             working = working.map((n: any) => (n.id === id ? { ...n, data: { ...(n.data as BlockData), insertionOrder: order } } : n))
             keepIds.add(id)
+            result.push({ id, content: payload })
           } else {
             // Create new
             const newId = nextBlockId()
@@ -503,6 +509,7 @@ export function useBlockOperations(
             }
             working.push(newNode)
             keepIds.add(newId)
+            result.push({ id: newId, content: payload })
           }
           order += 1
         })
@@ -517,6 +524,7 @@ export function useBlockOperations(
         working = applyLayout(stackId, working)
         return working
       })
+      return result
     },
     [setNodes, nodeRefsMap, addBelow, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, ensureInsertionOrder, applyLayout]
   )

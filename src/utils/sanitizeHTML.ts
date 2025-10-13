@@ -67,6 +67,11 @@ function fixLinkSecurity(html: string): string {
 }
 
 /**
+ * Extra guard: strip any data-block-id attrs that might slip in.
+ */
+// Note: Identity attributes never hit HTML; no sanitizer logic needed for them.
+
+/**
  * Allow only https and mailto links; strip others.
  */
 function sanitizeLinks(html: string): string {

@@ -30,7 +30,7 @@ Data & Infra
 - Link sanitization: Persist-time sanitizer restricts to https/mailto and adds rel for target _blank.
 
 Key Files
-- src/renderers/FullscreenStackEditor.tsx — Fullscreen editor integrated with stacks (assemble/split by `blockId`).
+- src/renderers/FullscreenStackEditor.tsx — Fullscreen editor integrated with stacks (assemble/split by `blockId`), dev-only identity assertions, history reset on save.
 - src/editor/extensions.ts — Shared extensions (H1–H3, underline, highlight, link, text-align scoped, placeholder, trailing-node, tuned history, BlockIdentity; codeBlock off).
 - src/extensions/BlockIdentity.ts — JSON-only `blockId` attribute on top-level nodes.
 - src/extensions/SlashCommands.ts — Suggestion-based slash menu, renders `SlashMenu`.
@@ -55,6 +55,7 @@ Integration
 - Open: `StackContainer` composes blocks → doc, attaches `blockId` on each top-level node, mounts `FullscreenStackEditor`.
 - Save: `FullscreenStackEditor` splits doc → blocks, strips `blockId`, and calls `replaceStackContent(stackId, [{ id?: string, content }])`.
 - Diff: `replaceStackContent` creates/updates/deletes/reorders by `id` (missing id = new block); keeps stack layout.
+ - Lazy-load: `FullscreenStackEditor` is lazy-loaded in `StackContainer` to keep canvas bundle small.
 
 Definition of done
 1) Open via real stack → fullscreen shows a single doc in order.
@@ -63,3 +64,15 @@ Definition of done
 4) Round-trip preserves H1↔H2, paragraph↔list, blockquote.
 5) Multi-paragraph paste in fullscreen becomes multiple blocks on Save.
 6) No CSS bleed outside `.tt-shell`.
+
+Block unit contract (add to README/plan)
+- One block = one top-level node. Lists are whole-list blocks; do not split individual list items.
+- `blockId` exists only in fullscreen JSON for diffing and is stripped from per-block JSON and all HTML.
+
+Paste policy
+- Keep: paragraphs, headings, lists, blockquotes.
+- Strip: images and task checkboxes while those features are disabled.
+
+Schema versioning
+- Store `schemaVersion` per block. Lock @tiptap/* versions in package.json.
+- When changing the extension set or schema, bump `CURRENT_SCHEMA_VERSION` and add a small upgrader that normalizes existing JSON to the new schema.

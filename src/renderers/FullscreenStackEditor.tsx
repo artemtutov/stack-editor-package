@@ -17,6 +17,7 @@ import { TextAlignButton } from '../components/tiptap-ui/text-align-button'
 import { LinkPopover } from '../components/tiptap-ui/link-popover'
 import { HighlighterIcon } from '../components/tiptap-icons/highlighter-icon'
 import '../styles/fullscreen-editor.scss'
+import { normalizeFullscreenPaste } from '../utils/pasteFullscreen'
 
 type FullscreenStackEditorProps = {
   isOpen: boolean
@@ -43,19 +44,56 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
     extensions,
     content: doc,
     autofocus: 'end',
-    editorProps: {},
+    editorProps: {
+      handlePaste: (_view, event) => {
+        const html = event.clipboardData?.getData('text/html')
+        if (!html) return false
+        const sanitized = normalizeFullscreenPaste(html)
+        event.preventDefault()
+        // Let Tiptap parse the sanitized HTML with our extensions
+        editor?.commands.insertContent(sanitized)
+        return true
+      },
+    },
   })
 
   useEffect(() => {
     if (!editor || !isOpen) return
     const next = blocksToDoc(blocks).doc
     editor.commands.setContent(next, { emitUpdate: false })
+    // Fresh history session on open (no cross-session undo)
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        const tops = ensureJsonContent(next).content || []
+        const missing = tops.filter((n: any) => !(n.attrs && n.attrs.blockId))
+        if (missing.length) {
+          // eslint-disable-next-line no-console
+          console.warn('[Fullscreen] Some top-level nodes are missing blockId:', missing.map((n: any) => n.type))
+        }
+      } catch {}
+    }
   }, [editor, blocks, isOpen])
 
   const handleSave = useCallback(() => {
     if (!editor) return
-    const results = docToBlocks(editor.getJSON())
+    const json = editor.getJSON()
+    const results = docToBlocks(json)
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        const prevIds = new Set((blocks || []).map((b) => b.id))
+        const outIds = new Set(results.map((r) => r.id).filter(Boolean) as string[])
+        const newIds = [...results.map((r) => r.id).filter((id): id is string => !!id && !prevIds.has(id))]
+        const deleted = [...[...prevIds].filter((id) => !outIds.has(id))]
+        const tops = ensureJsonContent(json).content || []
+        const expectedCount = (prevIds.size + newIds.length - deleted.length)
+        if (tops.length !== expectedCount) {
+          // eslint-disable-next-line no-console
+          console.warn('[Fullscreen] Top-level count mismatch on save', { tops: tops.length, expectedCount })
+        }
+      } catch {}
+    }
     onSave(results)
+    // Note: If you want a hard history reset, recreate the editor instance.
   }, [editor, onSave])
 
   if (!isOpen) return null
@@ -144,7 +182,7 @@ function buttonStyle(primary: boolean): React.CSSProperties {
   }
 }
 
-function blocksToDoc(blocks: Array<{ id: string; content: RichTextPayload }>): { doc: JSONContent } {
+export function blocksToDoc(blocks: Array<{ id: string; content: RichTextPayload }>): { doc: JSONContent } {
   const content = blocks.map(({ id, content }) => {
     const json = ensureJsonContent(content.json)
     const top = (json.content && json.content[0]) || { type: 'paragraph', content: [] }
@@ -165,7 +203,7 @@ function stripBlockId(json: JSONContent): JSONContent {
   return { type: 'doc', content: [top] }
 }
 
-function docToBlocks(doc: JSONContent): Array<{ id?: string; content: RichTextPayload }> {
+export function docToBlocks(doc: JSONContent): Array<{ id?: string; content: RichTextPayload }> {
   const nodes = ensureJsonContent(doc).content ?? []
   if (nodes.length === 0) return [{ content: createEmptyPayload() }]
 

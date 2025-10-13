@@ -1,9 +1,10 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState, Suspense, lazy } from 'react'
 import { NodeResizeControl, Position, ResizeControlVariant } from '@xyflow/react'
 import FullscreenModal from './FullscreenModal'
-import FullscreenStackEditor from './FullscreenStackEditor'
+const LazyFullscreenStackEditor = lazy(() => import('./FullscreenStackEditor'))
 import type { BlockData, RichTextPayload } from '../types'
-import { ensureJsonContent, jsonToHtml } from '../editor/richText'
+import { ensureJsonContent, jsonToHtml, CURRENT_SCHEMA_VERSION } from '../editor/richText'
+import { upgradeContentJson } from '../editor/upgrade'
 import { sanitizeAndSave } from '../utils/sanitizeHTML'
 
 type Props = {
@@ -36,15 +37,18 @@ export default function StackContainer({ id, data, selected }: Props) {
     const stackId = data.stackId ?? (ordered[0]?.data?.stackId as string | undefined)
     if (!stackId) return
 
-    const blocks = ordered.map((node: any) => {
-      const blockData = node.data as BlockData
-      const json = ensureJsonContent(blockData.contentJson)
-      const html = sanitizeAndSave(blockData.cachedHTML ?? jsonToHtml(json))
-      return {
-        id: node.id as string,
-        content: { json, html },
-      }
-    })
+      const blocks = ordered.map((node: any) => {
+        const blockData = node.data as BlockData
+        const baseJson = ensureJsonContent(blockData.contentJson)
+        const json = blockData.schemaVersion !== CURRENT_SCHEMA_VERSION
+          ? ensureJsonContent(upgradeContentJson(baseJson, blockData.schemaVersion, CURRENT_SCHEMA_VERSION))
+          : baseJson
+        const html = sanitizeAndSave(blockData.cachedHTML ?? jsonToHtml(json))
+        return {
+          id: node.id as string,
+          content: { json, html },
+        }
+      })
 
     setFullscreenState({ stackId, blocks })
   }, [data])
@@ -57,7 +61,9 @@ export default function StackContainer({ id, data, selected }: Props) {
     (blocksIn: Array<{ id?: string; content: RichTextPayload }>) => {
       if (!fullscreenState) return
       if (data.replaceStackContent && fullscreenState.stackId) {
-        data.replaceStackContent(fullscreenState.stackId, blocksIn)
+        const results = data.replaceStackContent(fullscreenState.stackId, blocksIn)
+        // Optionally surface minted IDs to host here via a callback prop.
+        // console.debug('Fullscreen save results:', results)
       }
       setFullscreenState(null)
     },
@@ -67,14 +73,16 @@ export default function StackContainer({ id, data, selected }: Props) {
   return (
     <>
       <FullscreenModal isOpen={!!fullscreenState} onClose={handleCancelFullscreen} title="Stack">
-        {fullscreenState && (
-          <FullscreenStackEditor
-            isOpen
-            blocks={fullscreenState.blocks}
-            onCancel={handleCancelFullscreen}
-            onSave={handleSaveFullscreen}
-          />
-        )}
+        {fullscreenState && LazyFullscreenStackEditor ? (
+          <Suspense fallback={<div style={{ padding: 24 }}>Loading editor…</div>}>
+            <LazyFullscreenStackEditor
+              isOpen
+              blocks={fullscreenState.blocks}
+              onCancel={handleCancelFullscreen}
+              onSave={handleSaveFullscreen}
+            />
+          </Suspense>
+        ) : null}
       </FullscreenModal>
 
       {/* Normal stack container view */}
@@ -182,8 +190,10 @@ export default function StackContainer({ id, data, selected }: Props) {
             marginRight: '8px',
             transition: 'background-color 0.15s',
           }}
-          onMouseEnter={(e) => {
+          onMouseEnter={async (e) => {
             e.currentTarget.style.backgroundColor = '#f3f4f6'
+            // Prefetch fullscreen editor chunk on intent
+            try { await import('./FullscreenStackEditor' /* webpackPrefetch: true */) } catch {}
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'transparent'

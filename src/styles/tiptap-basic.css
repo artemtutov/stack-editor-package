@@ -17,8 +17,7 @@
 .tiptap-editor-wrapper .ProseMirror h2,
 .tiptap-editor-wrapper .ProseMirror h3,
 .tiptap-editor-wrapper .ProseMirror ul,
-.tiptap-editor-wrapper .ProseMirror ol,
-.tiptap-editor-wrapper .ProseMirror blockquote {
+.tiptap-editor-wrapper .ProseMirror ol {
   margin: 0;
 }
 

@@ -319,6 +319,31 @@ export function useBlockOperations(
 
         let updatedNodes = [...nds, newNode]
         updatedNodes = ensureInsertionOrder(stackId, updatedNodes)
+
+        // Reorder blocks to insert new block right after current block
+        const blocks = updatedNodes.filter(
+          (n: any) => n.data?.stackId === stackId && n.type !== 'stackContainer'
+        )
+        const ordered = [...blocks].sort(
+          (a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0)
+        )
+        // Filter out newBlock to get the others
+        const others = ordered.filter((b: any) => b.id !== newId)
+        // Find current block in others array (without newBlock) to get correct insert index
+        const curIdxInOthers = others.findIndex((b: any) => b.id === currentNodeId)
+        const insertIndex = curIdxInOthers === -1 ? others.length : curIdxInOthers + 1
+        const reordered = [
+          ...others.slice(0, insertIndex),
+          updatedNodes.find((n) => n.id === newId) as any,
+          ...others.slice(insertIndex),
+        ]
+        const idToOrder = new Map(reordered.map((b: any, i: number) => [b.id, i]))
+        updatedNodes = updatedNodes.map((n: any) =>
+          n.data?.stackId === stackId && n.type !== 'stackContainer'
+            ? { ...n, data: { ...n.data, insertionOrder: idToOrder.get(n.id) } }
+            : n
+        )
+
         const final = applyLayout(stackId, updatedNodes)
         setTimeout(() => nodeRefsMap.current[newId]?.current?.focus?.(), 50)
         return final
@@ -438,6 +463,31 @@ export function useBlockOperations(
         let updatedNodes = nds.map((n) => (n.id === nodeId ? updatedCurrent : n))
         updatedNodes = [...updatedNodes, newNode]
         updatedNodes = ensureInsertionOrder(stackId, updatedNodes)
+
+        // Reorder blocks to insert new block right after current block
+        const blocks = updatedNodes.filter(
+          (n: any) => n.data?.stackId === stackId && n.type !== 'stackContainer'
+        )
+        const ordered = [...blocks].sort(
+          (a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0)
+        )
+        // Filter out newBlock to get the others
+        const others = ordered.filter((b: any) => b.id !== newId)
+        // Find current block in others array (without newBlock) to get correct insert index
+        const curIdxInOthers = others.findIndex((b: any) => b.id === nodeId)
+        const insertIndex = curIdxInOthers === -1 ? others.length : curIdxInOthers + 1
+        const reordered = [
+          ...others.slice(0, insertIndex),
+          updatedNodes.find((n) => n.id === newId) as any,
+          ...others.slice(insertIndex),
+        ]
+        const idToOrder = new Map(reordered.map((b: any, i: number) => [b.id, i]))
+        updatedNodes = updatedNodes.map((n: any) =>
+          n.data?.stackId === stackId && n.type !== 'stackContainer'
+            ? { ...n, data: { ...n.data, insertionOrder: idToOrder.get(n.id) } }
+            : n
+        )
+
         const final = applyLayout(stackId, updatedNodes)
         setTimeout(() => nodeRefsMap.current[newId]?.current?.focus?.(), 50)
         return final

@@ -59,8 +59,19 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
 
   useEffect(() => {
     if (!editor || !isOpen) return
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Fullscreen] Opening editor with blocks:', blocks.map(b => ({ id: b.id, type: ensureJsonContent(b.content.json).content?.[0]?.type })))
+    }
+
     const next = blocksToDoc(blocks).doc
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Fullscreen] About to setContent with doc:', JSON.stringify(next, null, 2))
+    }
+
     editor.commands.setContent(next, { emitUpdate: false })
+
     // Fresh history session on open (no cross-session undo)
     if (process.env.NODE_ENV !== 'production') {
       try {
@@ -70,6 +81,12 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
           // eslint-disable-next-line no-console
           console.warn('[Fullscreen] Some top-level nodes are missing blockId:', missing.map((n: any) => n.type))
         }
+
+        // Check what actually made it into the editor
+        setTimeout(() => {
+          const editorDoc = editor.getJSON()
+          console.log('[Fullscreen] Editor doc after setContent:', JSON.stringify(editorDoc, null, 2))
+        }, 100)
       } catch {}
     }
   }, [editor, blocks, isOpen])
@@ -187,8 +204,11 @@ export function blocksToDoc(blocks: Array<{ id: string; content: RichTextPayload
     const json = ensureJsonContent(content.json)
     const top = (json.content && json.content[0]) || { type: 'paragraph', content: [] }
     const attrs = { ...(top as any).attrs, blockId: id }
-    return { ...top, attrs }
+    const result = { ...top, attrs }
+    console.log('[blocksToDoc] Mapping block:', { id, nodeType: top.type, hasBlockId: !!attrs.blockId })
+    return result
   })
+  console.log('[blocksToDoc] Final doc:', JSON.stringify({ type: 'doc', content }, null, 2))
   return { doc: content.length ? { type: 'doc', content } : FALLBACK_DOC }
 }
 
@@ -207,11 +227,37 @@ export function docToBlocks(doc: JSONContent): Array<{ id?: string; content: Ric
   const nodes = ensureJsonContent(doc).content ?? []
   if (nodes.length === 0) return [{ content: createEmptyPayload() }]
 
-  return nodes.map((node: any) => {
-    const raw: JSONContent = { type: 'doc', content: [node] }
-    const id = node?.attrs?.blockId as string | undefined
-    const json = stripBlockId(raw)
-    const html = sanitizeAndSave(jsonToHtml(json))
-    return { id, content: { json, html } }
-  })
+  console.log('[docToBlocks] Processing nodes:', JSON.stringify(nodes, null, 2))
+
+  const results = nodes
+    .map((node: any, index: number) => {
+      console.log(`[docToBlocks] Node ${index}:`, {
+        type: node.type,
+        attrs: node.attrs,
+        hasContent: !!node.content,
+        contentLength: node.content?.length
+      })
+
+      const id = node?.attrs?.blockId as string | undefined
+
+      // Filter out empty nodes without blockIds (TipTap placeholders)
+      if (!id && (!node.content || node.content.length === 0)) {
+        console.log(`[docToBlocks] Skipping empty node ${index} without blockId`)
+        return null
+      }
+
+      const raw: JSONContent = { type: 'doc', content: [node] }
+      const json = stripBlockId(raw)
+
+      console.log(`[docToBlocks] After stripBlockId for node ${index}:`, JSON.stringify(json, null, 2))
+
+      const html = sanitizeAndSave(jsonToHtml(json))
+      console.log(`[docToBlocks] Generated HTML for node ${index}:`, html)
+
+      return { id, content: { json, html } }
+    })
+    .filter((block): block is { id?: string; content: RichTextPayload } => block !== null)
+
+  // If all nodes were filtered out, return empty payload
+  return results.length > 0 ? results : [{ content: createEmptyPayload() }]
 }

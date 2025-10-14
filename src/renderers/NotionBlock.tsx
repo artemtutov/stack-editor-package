@@ -88,11 +88,11 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
     [data, dispatchEvent, id]
   )
 
-  const handleMergeUp = useCallback(() => {
+  const handleMergeUp = useCallback((currentContent?: RichTextPayload) => {
     if (data.onMergeUp) {
-      data.onMergeUp(id)
+      data.onMergeUp(id, currentContent)
     } else {
-      dispatchEvent('block:mergeUp', { id })
+      dispatchEvent('block:mergeUp', { id, currentContent })
     }
   }, [data, dispatchEvent, id])
 

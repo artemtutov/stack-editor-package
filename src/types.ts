@@ -28,8 +28,8 @@ export type BlockData = {
   onSlashCommand?: (id: string, rect?: DOMRect | null) => void
   onDelete?: (id: string) => void
   onSplit?: (id: string, before: RichTextPayload, after: RichTextPayload) => void
-  onMergeUp?: (id: string) => void
-  focusRef?: { current: null | { focus: () => void; setCaretToEnd?: () => void; setCaretAt?: (pos: number) => void } }
+  onMergeUp?: (id: string, currentContent?: RichTextPayload) => void
+  focusRef?: { current: null | { focus: () => void; setCaretToEnd?: () => void; setCaretAt?: (pos: number) => void; getLatestJson?: () => JSONContent } }
   placeholder?: string
 }
 

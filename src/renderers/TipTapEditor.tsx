@@ -17,7 +17,7 @@ export type TipTapEditorProps = {
   onContentUpdate: (payload: RichTextPayload) => void
   createBlockBelow: (initialContent?: RichTextPayload) => void
   createMultipleBlocksBelow?: (payloads: RichTextPayload[]) => void
-  mergeBlockUp: () => void
+  mergeBlockUp: (currentContent?: RichTextPayload) => void
   focusPrevious: () => void
   focusNext: () => void
   focusPreviousTab: () => void
@@ -47,6 +47,7 @@ export default function TipTapEditor({
   onFocusChange,
 }: TipTapEditorProps) {
   const editorRef = useRef<Editor | null>(null)
+  const lastKnownJsonRef = useRef<JSONContent>(contentJson)
 
   const baseExtensions = useMemo(() => createEditorExtensions({
     placeholder,
@@ -59,7 +60,7 @@ export default function TipTapEditor({
       ...baseExtensions,
       CanvasKeymap.configure({
         onEnterBelow: (content) => createBlockBelow(content),
-        onMergeUp: mergeBlockUp,
+        onMergeUp: (currentContent) => mergeBlockUp(currentContent),
         onFocusPrev: focusPrevious,
         onFocusNext: focusNext,
         onTabPrev: focusPreviousTab,
@@ -84,6 +85,8 @@ export default function TipTapEditor({
     },
     onUpdate: ({ editor }) => {
       const nextJson = ensureJsonContent(editor.getJSON())
+      // Store latest JSON for merge operations (bypasses React state delays)
+      lastKnownJsonRef.current = nextJson
       const nextHtml = sanitizeAndSave(jsonToHtml(nextJson))
       onContentUpdate({ json: nextJson, html: nextHtml })
     },
@@ -163,6 +166,8 @@ export default function TipTapEditor({
     const incoming = cleanTrailingParagraphs(ensureJsonContent(contentJson))
     if (JSON.stringify(current) !== JSON.stringify(incoming)) {
       editor.commands.setContent(incoming, { emitUpdate: false })
+      // Update ref when content changes externally
+      lastKnownJsonRef.current = incoming
     }
   }, [editor, contentJson])
 
@@ -184,6 +189,11 @@ export default function TipTapEditor({
       setCaretAt: (pos: number) => {
         const clamped = Math.max(0, Math.min(pos, editor.state.doc.content.size))
         editor.chain().setTextSelection(clamped).focus().run()
+      },
+      getLatestJson: () => {
+        // Return the most recent JSON from editor or ref
+        // This bypasses React state synchronization issues
+        return lastKnownJsonRef.current
       },
     }
 

@@ -4,7 +4,7 @@ import type { RichTextPayload } from '../types'
 
 export interface CanvasKeymapOptions {
   onEnterBelow: (initialContent?: RichTextPayload) => void
-  onMergeUp: () => void
+  onMergeUp: (currentContent?: RichTextPayload) => void
   onFocusPrev: () => void
   onFocusNext: () => void
   onTabPrev: () => void
@@ -18,7 +18,7 @@ export const CanvasKeymap = Extension.create<CanvasKeymapOptions>({
   addOptions() {
     return {
       onEnterBelow: () => {},
-      onMergeUp: () => {},
+      onMergeUp: (_currentContent?) => {},
       onFocusPrev: () => {},
       onFocusNext: () => {},
       onTabPrev: () => {},
@@ -88,12 +88,20 @@ export const CanvasKeymap = Extension.create<CanvasKeymapOptions>({
             }
 
             if (event.key === 'Backspace' && atStart && $from.sameParent($to)) {
+              // Guard against IME composition
+              if ((view as any).composing) {
+                return false
+              }
+
               event.preventDefault()
               const isEmpty = !state.doc.textContent || state.doc.textContent.trim().length === 0
               if (isEmpty) {
                 onDeleteBlock()
               } else {
-                onMergeUp()
+                // Get current editor content to pass to merge handler
+                // This ensures we use the latest typed content, not stale React state
+                const currentJson = state.doc.toJSON()
+                onMergeUp({ json: currentJson, html: '' })
               }
               return true
             }

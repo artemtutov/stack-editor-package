@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { Node } from '@xyflow/react'
+import type { JSONContent } from '@tiptap/core'
 import type { BlockData, RichTextPayload } from '../types'
 import {
   nextBlockId,
@@ -10,7 +11,7 @@ import {
   getPreviousBlockByY,
 } from '../logic/stackState'
 import { ensureInsertionOrder } from '../logic/stackLayout'
-import { createEmptyPayload, mergePayloads, htmlToJson, jsonToHtml, ensureJsonContent, CURRENT_SCHEMA_VERSION } from '../editor/richText'
+import { createEmptyPayload, mergePayloads, htmlToJson, jsonToHtml, ensureJsonContent, CURRENT_SCHEMA_VERSION, calculateContentLength, calculateNodeSize, calculateInlineTextLength } from '../editor/richText'
 import { upgradeContentJson } from '../editor/upgrade'
 import { sanitizeAndSave } from '../utils/sanitizeHTML'
 
@@ -25,7 +26,7 @@ export type BlockCallbacks = {
   onSlashCommand: (id: string, rect?: DOMRect | null) => void
   onDelete: (id: string) => void
   onSplit: (id: string, before: RichTextPayload, after: RichTextPayload) => void
-  onMergeUp: (id: string) => void
+  onMergeUp: (id: string, currentContent?: RichTextPayload) => void
 }
 
 export type NodeRefsMap = Record<
@@ -35,6 +36,7 @@ export type NodeRefsMap = Record<
       focus: () => void
       setCaretAt?: (pos: number) => void
       setCaretToEnd?: () => void
+      getLatestJson?: () => JSONContent
     }
   }
 >
@@ -146,7 +148,8 @@ export function useBlockOperations(
   )
 
   const handleMergeUp = useCallback(
-    (nodeId: string) => {
+    (nodeId: string, currentContent?: RichTextPayload) => {
+      // Get stackId and prevId using layout queries (minimal nodesRef usage)
       const currentNodes = nodesRef.current as any
       const current = currentNodes.find((n: any) => n.id === nodeId)
       if (!current) return
@@ -157,9 +160,27 @@ export function useBlockOperations(
       if (!prev) return
 
       const prevId = prev.id as string
-      const mergedPayload = mergePayloads(blockDataToPayload(prev.data as BlockData), blockDataToPayload(current.data as BlockData))
+
+      // Get LIVE JSON from both editors (bypasses React state sync issues)
+      const currentJson = currentContent?.json || ensureJsonContent(null)
+
+      // Get prev editor's latest JSON from its focusRef (not from React state)
+      const prevHandle = nodeRefsMap.current[prevId]?.current
+      const prevJson = prevHandle?.getLatestJson?.() || ensureJsonContent(null)
+
+      // Create payloads from live editor JSON
+      const currentPayload = toPayload(currentContent || { json: currentJson, html: '' })
+      const prevPayload = toPayload({ json: prevJson, html: '' })
+
+      // Merge to create a single valid top-level node
+      const mergedPayload = mergePayloads(prevPayload, currentPayload)
+
+      // Calculate cursor position: just the inline text length of the prev block
+      // This positions the cursor right after the prev text, before the current text
+      const prevInlineLength = calculateInlineTextLength({ type: 'doc', content: [prevJson.content?.[0] || { type: 'paragraph' }] })
 
       setNodes((nds) => {
+        // Apply merged payload to prev node and remove current node
         let updated = nds.map((n: any) => (n.id === prevId ? applyPayloadToNode(n, mergedPayload) : n))
         updated = removeBlock(nodeId, updated)
 
@@ -173,14 +194,21 @@ export function useBlockOperations(
         return updated
       })
 
-      setTimeout(() => {
-        const handle = nodeRefsMap.current[prevId]?.current
-        if (handle?.setCaretToEnd) {
-          handle.setCaretToEnd()
-        } else {
-          handle?.focus?.()
-        }
-      }, 50)
+      // Use double RAF to ensure prev editor is mounted and has new JSON
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const handle = nodeRefsMap.current[prevId]?.current
+          if (handle?.setCaretAt) {
+            // Position at the merge point (after prev's inline text, before current's text)
+            // +1 to account for the paragraph opening tag in ProseMirror's position system
+            handle.setCaretAt(prevInlineLength + 1)
+          } else if (handle?.setCaretToEnd) {
+            handle.setCaretToEnd()
+          } else {
+            handle?.focus?.()
+          }
+        })
+      })
     },
     [nodesRef, setNodes, nodeRefsMap, applyLayout, syncContainers]
   )

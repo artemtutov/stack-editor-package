@@ -1,7 +1,14 @@
 import type { Node, NodeTypes } from '@xyflow/react'
-import type { JSONContent } from '@tiptap/core'
+import type { JSONContent, Editor } from '@tiptap/core'
 
 export type BlockId = string
+
+export type SlashPayload = {
+  anchor: { x: number; y: number }
+  range: { from: number; to: number; query: string }
+  blockId: string
+  getEditor: () => Editor | null
+}
 
 export type RichTextPayload = {
   json: JSONContent
@@ -25,7 +32,7 @@ export type BlockData = {
   onTabPrev?: (id: string) => void
   onArrowUp?: (id: string) => void
   onArrowDown?: (id: string) => void
-  onSlashCommand?: (id: string, rect?: DOMRect | null) => void
+  onSlashCommand?: (payload: SlashPayload) => void
   onDelete?: (id: string) => void
   onSplit?: (id: string, before: RichTextPayload, after: RichTextPayload) => void
   onMergeUp?: (id: string, currentContent?: RichTextPayload) => void

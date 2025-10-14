@@ -68,12 +68,11 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
     [data, dispatchEvent, id]
   )
 
-  const handleSlashCommand = useCallback(() => {
-    const rect = blockRef.current?.getBoundingClientRect() || null
+  const handleSlashCommand = useCallback((payload: any) => {
     if (data.onSlashCommand) {
-      data.onSlashCommand(id, rect)
+      data.onSlashCommand(payload)
     } else {
-      dispatchEvent('block:slash', { id, rect })
+      dispatchEvent('block:slash', { id, payload })
     }
   }, [data, dispatchEvent, id])
 

@@ -1,13 +1,31 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import type { JSONContent } from '@tiptap/core'
-import type { BlockData, RichTextPayload } from '../types'
+import type { BlockData, RichTextPayload, SlashPayload } from '../types'
 import { CanvasKeymap } from '../extensions/CanvasKeymap'
 import { splitPastedContent } from '../utils/paste'
 import { incrementEditorCount, decrementEditorCount } from '../utils/editorTelemetry'
 import { createEditorExtensions } from '../editor/extensions'
 import { htmlToJson, jsonToHtml, ensureJsonContent, cleanTrailingParagraphs } from '../editor/richText'
 import { sanitizeAndSave } from '../utils/sanitizeHTML'
+
+// Helper: Find slash range and query for slash menu
+function findSlashRange(state: Editor['state']) {
+  const { from } = state.selection
+  const textBefore = state.doc.textBetween(Math.max(0, from - 200), from, '\n', '\n')
+  const idx = textBefore.lastIndexOf('/')
+  if (idx === -1) return null
+
+  // Don't trigger if slash is inside a word (e.g., "https://")
+  const prev = textBefore[idx - 1]
+  if (prev && /\S/.test(prev)) return null
+
+  const query = textBefore.slice(idx + 1)
+  const slashFrom = from - query.length - 1
+  const slashTo = from
+
+  return { from: slashFrom, to: slashTo, query }
+}
 
 export type TipTapEditorProps = {
   blockId: string
@@ -23,7 +41,7 @@ export type TipTapEditorProps = {
   focusPreviousTab: () => void
   focusNextTab: () => void
   deleteBlock: () => void
-  triggerSlashCommand: () => void
+  triggerSlashCommand: (payload: SlashPayload) => void
   focusRef?: BlockData['focusRef']
   onFocusChange?: (focused: boolean) => void
 }
@@ -99,12 +117,51 @@ export default function TipTapEditor({
         'aria-label': 'Block content',
         id: `block-${blockId}`,
       },
-      handleKeyDown: (_view, event) => {
+      handleKeyDown: (view, event) => {
+        // Ignore during IME composition
+        if ((view as any).composing) return false
+
         if (event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey) {
-          event.preventDefault()
-          triggerSlashCommand()
-          return true
+          // Let TipTap insert the "/" first, then we'll detect it
+          setTimeout(() => {
+            if (!editor) return
+            const range = findSlashRange(editor.state)
+            if (!range) return
+
+            const { from } = editor.state.selection
+            const coords = view.coordsAtPos(from)
+
+            triggerSlashCommand({
+              anchor: { x: coords.left, y: coords.bottom },
+              range,
+              blockId,
+              getEditor: () => editor,
+            })
+          }, 0)
         }
+        return false
+      },
+      handleTextInput: (view, _from, _to, _text) => {
+        // Ignore during IME composition
+        if ((view as any).composing) return false
+
+        // Check if we're typing after a slash
+        setTimeout(() => {
+          if (!editor) return
+          const range = findSlashRange(editor.state)
+          if (!range) return
+
+          const { from } = editor.state.selection
+          const coords = view.coordsAtPos(from)
+
+          triggerSlashCommand({
+            anchor: { x: coords.left, y: coords.bottom },
+            range,
+            blockId,
+            getEditor: () => editor,
+          })
+        }, 0)
+
         return false
       },
       handlePaste: (_view, event) => {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { Node } from '@xyflow/react'
 import type { JSONContent } from '@tiptap/core'
-import type { BlockData, RichTextPayload } from '../types'
+import type { BlockData, RichTextPayload, SlashPayload } from '../types'
 import {
   nextBlockId,
   nextStackId,
@@ -23,7 +23,7 @@ export type BlockCallbacks = {
   onTabPrev: (id: string) => void
   onArrowUp: (id: string) => void
   onArrowDown: (id: string) => void
-  onSlashCommand: (id: string, rect?: DOMRect | null) => void
+  onSlashCommand: (payload: SlashPayload) => void
   onDelete: (id: string) => void
   onSplit: (id: string, before: RichTextPayload, after: RichTextPayload) => void
   onMergeUp: (id: string, currentContent?: RichTextPayload) => void
@@ -47,7 +47,7 @@ export type UseBlockOperationsOptions = {
   applyLayout: (stackId: string, nodes: Node[]) => Node[]
   syncContainers: (nodes: Node[]) => Node[]
   handleHeightChange: (nodeId: string, newHeight: number) => void
-  handleSlashCommand: (nodeId: string, rectFromChild?: DOMRect | null) => void
+  handleSlashCommand: (payload: SlashPayload) => void
   tabHandlersRef: React.MutableRefObject<{ handleTabNext?: (id: string) => void; handleTabPrev?: (id: string) => void; handleArrowUp?: (id: string) => void; handleArrowDown?: (id: string) => void }>
   gap: number
   blockWidth: number

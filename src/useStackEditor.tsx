@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNodesState, applyNodeChanges, useStoreApi, type Node, type NodeTypes, type NodeChange } from '@xyflow/react'
+import type { Editor } from '@tiptap/core'
 import NotionBlock from './renderers/NotionBlock'
 import StackContainer from './renderers/StackContainer'
 import SlashMenu, { type SlashMenuItem } from './renderers/SlashMenu'
@@ -11,6 +12,7 @@ import type {
   InitialBlock,
   StackEditorOptions,
   RichTextPayload,
+  SlashPayload,
 } from './types'
 import { useStackLayout } from './hooks/useStackLayout'
 import { useStackDrag } from './hooks/useStackDrag'
@@ -34,6 +36,41 @@ const DEFAULTS: Required<StackEditorOptions> = {
   indicatorStabilityPx: 0.5,
 }
 
+// Apply slash command to editor
+function applySlashCommand(editor: Editor, cmd: string) {
+  const chain = editor.chain().focus()
+  switch (cmd) {
+    case 'text':
+      chain.setParagraph().run()
+      break
+    case 'heading1':
+      chain.setHeading({ level: 1 }).run()
+      break
+    case 'heading2':
+      chain.setHeading({ level: 2 }).run()
+      break
+    case 'heading3':
+      chain.setHeading({ level: 3 }).run()
+      break
+    case 'bulletlist':
+      // Clear headings/blocks first, then apply list
+      chain.clearNodes().toggleBulletList().run()
+      break
+    case 'numberlist':
+      // Clear headings/blocks first, then apply list
+      chain.clearNodes().toggleOrderedList().run()
+      break
+    case 'todo':
+      // Clear headings/blocks first, then apply task list
+      chain.clearNodes().toggleTaskList?.().run()
+      break
+    case 'blockquote':
+      // Clear headings/blocks first, then apply blockquote
+      chain.clearNodes().setBlockquote().run()
+      break
+  }
+}
+
 export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResult {
   const opts = { ...DEFAULTS, ...(args?.options || {}) }
 
@@ -54,7 +91,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   const setNodesRef = useRef<((updater: Node[] | ((nodes: Node[]) => Node[])) => void) | null>(null)
 
   // Slash menu state
-  const [slashMenu, setSlashMenu] = useState<null | { nodeId: string; position: { x: number; y: number } }>(null)
+  const [slashMenu, setSlashMenu] = useState<null | (SlashPayload & { position: { x: number; y: number } })>(null)
 
   // Update nodes ref
   useEffect(() => {
@@ -95,22 +132,34 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
   // Slash command handler
   const handleSlashCommand = useCallback(
-    (nodeId: string, rectFromChild?: DOMRect | null) => {
+    (payload: SlashPayload) => {
       if (!opts.enableSlashMenu) return
-      const rect =
-        rectFromChild ||
-        (document.querySelector(`.react-flow__node[data-id="${nodeId}"]`) as HTMLElement | null)?.getBoundingClientRect() ||
-        null
-      if (!rect) return
-      setSlashMenu({ nodeId, position: { x: rect.left, y: rect.top } })
+      setSlashMenu({
+        ...payload,
+        position: payload.anchor,
+      })
     },
     [opts.enableSlashMenu]
   )
 
   const onSlashMenuSelect = useCallback((item: SlashMenuItem) => {
-    console.log('Selected:', item.id)
+    if (!slashMenu) return
+
+    const editor = slashMenu.getEditor()
+    if (!editor) {
+      setSlashMenu(null)
+      return
+    }
+
+    // Delete the "/query" text
+    editor.chain().focus().deleteRange(slashMenu.range).run()
+
+    // Apply the command
+    applySlashCommand(editor, item.id)
+
+    // Close menu
     setSlashMenu(null)
-  }, [])
+  }, [slashMenu])
 
   // Create keyboard navigation handlers ref early
   const tabHandlers = useRef<{ handleTabNext?: (id: string) => void; handleTabPrev?: (id: string) => void; handleArrowUp?: (id: string) => void; handleArrowDown?: (id: string) => void }>({})
@@ -411,7 +460,12 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   const overlays = (
     <>
       {slashMenu && (
-        <SlashMenu position={slashMenu.position} onSelect={onSlashMenuSelect} onClose={() => setSlashMenu(null)} />
+        <SlashMenu
+          position={slashMenu.position}
+          query={slashMenu.range.query}
+          onSelect={onSlashMenuSelect}
+          onClose={() => setSlashMenu(null)}
+        />
       )}
       <DropIndicator show={drag.dropIndicator.show} position={drag.dropIndicator.position} />
     </>

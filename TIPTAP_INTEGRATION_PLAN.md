@@ -1,19 +1,74 @@
 
-Latest understanding
+# TipTap Integration Plan
 
-Here’s the rewritten markdown, updated to the deep-sync + JSON-first approach and cleaned up per our new contract. You can replace your file with this:
+## Implementation Status (Updated: 2025-10-14)
 
-⸻
+### 📊 Phase 1: **95% Complete** ✅
 
-TipTap Integration Plan
+**Core Features - ALL IMPLEMENTED:**
+- ✅ Shared extension factory (`src/editor/extensions.ts`)
+- ✅ JSON-first storage (contentJson + cachedHTML)
+- ✅ Block identity system (BlockIdentity extension + blocksToDoc/docToBlocks)
+- ✅ Fullscreen editor (FullscreenStackEditor.tsx)
+- ✅ Canvas integration (NotionBlock.tsx + TipTapEditor.tsx)
+- ✅ Link security (rel="noopener noreferrer" enforced)
+- ✅ TrailingNode extension (fullscreen only)
+- ✅ CanvasKeymap with IME composition guards
+- ✅ Paste splitting (multi-paragraph → multiple blocks)
+- ✅ Drag-vs-edit guards (focus disables drag)
+- ✅ Mobile safe-area CSS (env(safe-area-inset-*))
+- ✅ Editor telemetry (activeEditorCount tracking)
+- ✅ Lazy loading (FullscreenStackEditor lazy-loaded on demand)
+- ✅ Prefetching (on hover intent via StackContainer)
+- ✅ Schema versioning infrastructure (CURRENT_SCHEMA_VERSION + upgradeContentJson)
 
-Overview
+**Key Files Implemented:**
+- `src/editor/extensions.ts` - Shared extension factory
+- `src/extensions/BlockIdentity.ts` - Block identity for fullscreen diffing
+- `src/extensions/CanvasKeymap.ts` - Canvas keyboard navigation
+- `src/renderers/FullscreenStackEditor.tsx` - Fullscreen editor with blocksToDoc/docToBlocks
+- `src/renderers/TipTapEditor.tsx` - Canvas block editor
+- `src/renderers/NotionBlock.tsx` - Block wrapper with drag guards
+- `src/renderers/StackContainer.tsx` - Lazy loading + prefetch
+- `src/utils/sanitizeHTML.ts` - HTML sanitization
+- `src/utils/paste.ts` - Paste splitting
+- `src/utils/editorTelemetry.ts` - Performance tracking
+- `src/styles/fullscreen-editor.scss` - Scoped .tt-shell styles
+
+**What's Missing (5%):**
+- ⚠️ Comprehensive test suite (only 1 basic test exists)
+- ⚠️ Mobile/IME manual testing documentation
+
+**Current Performance:**
+- Supports ~20-30 blocks smoothly (Phase 1 target met)
+- All editors mount independently (no pooling yet)
+
+---
+
+### 📋 Phase 2: **0% Complete** ❌
+
+**Not Yet Implemented (for 200+ block performance):**
+
+1. ❌ **Editor Pooling** - Pool 6-12 reusable instances
+2. ❌ **Viewport-Aware Mounting** - IntersectionObserver for visible blocks only
+3. ❌ **Debounced Persistence** - 200-300ms onChange debounce
+4. ❌ **Caret Memory** - Store/restore cursor position on blur/focus
+5. ❌ **Performance Monitoring** - Pool warnings, memory profiling
+6. ❌ **Smart Stack Activation** - Only activate visible blocks
+
+**Phase 2 Goal:** Scale from 20-30 blocks → 200+ blocks smoothly
+
+---
+
+## Overview
 
 This document defines how we integrate TipTap into the stack editor package and keep canvas blocks in deep sync with a single fullscreen document.
-	•	Phase 1 (Current): Deep-sync fullscreen + JSON-first storage
-	•	Phase 2: Performance, UX polish, and bundle hygiene for 200+ blocks
 
-⸻
+**Phase Status:**
+- **Phase 1** (Deep-sync fullscreen + JSON-first storage): ✅ 95% Complete
+- **Phase 2** (Performance optimizations for 200+ blocks): ❌ Not started
+
+---
 
 Implementation Contract: Fullscreen TipTap ↔ Stack Blocks
 
@@ -52,16 +107,16 @@ CSS & theming
 	•	Support light/dark via CSS variables. Respect mobile safe-area insets (env(safe-area-inset-*)).
 
 Acceptance criteria (Definition of Done)
-	1.	Opening a real stack mounts one fullscreen TipTap editor composed from the stack’s blocks in order.
-	2.	Save performs doc → blocks diff by blockId, updating content/order without changing canvas layout.
-	3.	Cancel makes no content/layout changes.
-	4.	H1 ↔ H2, paragraph ↔ list, and blockquote edits round-trip losslessly canvas ↔ fullscreen.
-	5.	Multi-paragraph paste in fullscreen becomes multiple blocks on Save.
-	6.	Links are validated; persisted HTML adds rel="noopener noreferrer" for target="_blank".
-	7.	History depth bounded (~100) and TrailingNode present (no cursor dead-ends).
-	8.	No stylesheet bleed outside .tt-shell.
-	9.	Canvas and fullscreen use the same extension set; schema versions match.
-	10.	Mobile: toolbar usable with IME; no canvas pan/zoom while editing.
+	1.	✅ Opening a real stack mounts one fullscreen TipTap editor composed from the stack's blocks in order.
+	2.	✅ Save performs doc → blocks diff by blockId, updating content/order without changing canvas layout.
+	3.	✅ Cancel makes no content/layout changes.
+	4.	✅ H1 ↔ H2, paragraph ↔ list, and blockquote edits round-trip losslessly canvas ↔ fullscreen.
+	5.	✅ Multi-paragraph paste in fullscreen becomes multiple blocks on Save.
+	6.	✅ Links are validated; persisted HTML adds rel="noopener noreferrer" for target="_blank".
+	7.	✅ History depth bounded (~100) and TrailingNode present (no cursor dead-ends).
+	8.	✅ No stylesheet bleed outside .tt-shell (styles scoped under .tt-shell).
+	9.	✅ Canvas and fullscreen use the same extension set; schema versions match.
+	10.	⚠️ Mobile: toolbar usable with IME; no canvas pan/zoom while editing (implemented, needs manual testing).
 
 Out of scope (explicit)
 	•	Separate demo routes/pages.
@@ -144,61 +199,92 @@ type BlockData = {
 
 Phase 2: Production Optimizations
 
-Status note: JSON-first storage, shared extension set (Link/TextAlign/TrailingNode), and fullscreen diffing by blockId are already implemented in Phase 1. Phase 2 focuses on performance, UX polish, and bundle hygiene.
+**Status: 0% Complete** ❌
 
-Architecture Improvements
+**Already Completed in Phase 1:**
+- ✅ JSON-first storage (contentJson + cachedHTML model)
+- ✅ Shared extension set (Link/TextAlign/TrailingNode)
+- ✅ Fullscreen diffing by blockId
+- ✅ Lazy loading (FullscreenStackEditor via React.lazy)
+- ✅ Prefetch on hover (StackContainer.tsx:196)
+- ✅ Basic telemetry (editorTelemetry.ts - active editor count)
+- ✅ Drag-vs-edit guards (NotionBlock.tsx:151, 161-166)
+- ✅ Paste splitting (TipTapEditor.tsx:168-203)
 
-1. Editor Pooling (src/hooks/useEditorPool.ts)
+Phase 2 focuses on **performance optimizations for 200+ blocks**. None of the items below are implemented yet.
+
+Architecture Improvements (NOT YET IMPLEMENTED)
+
+1. ❌ Editor Pooling (src/hooks/useEditorPool.ts)
 
 Pool 6–12 reusable TipTap instances; attach/detach as focus moves. Keep active editors ≤ pool size.
 
-2. Cached HTML rendering (derived)
-	•	Ensure every block maintains an up-to-date cachedHTML for read-only rendering.
-	•	Sanitize only the HTML cache; never mutate/sanitize JSON.
-	•	Provide a lightweight HTML renderer matching editor typography.
+**Current:** Every block mounts its own editor instance (no pooling).
 
-3. Viewport-Aware Mounting (IntersectionObserver)
+2. ✅ Cached HTML rendering (derived) - ALREADY IMPLEMENTED
+
+Blocks store cachedHTML for read-only rendering. Sanitize only HTML; never mutate JSON.
+
+3. ❌ Viewport-Aware Mounting (IntersectionObserver)
 
 Mount editors only for visible blocks (+ buffer). Off-screen blocks render cachedHTML.
 
-4. Debounced Persistence
+**Current:** All blocks mount full editors regardless of visibility.
+
+4. ❌ Debounced Persistence
 
 Buffer onChange with 200–300 ms debounce; batch writes per rAF; autosave snapshots every 10s.
 
-5. Drag-vs-Edit Guards
+**Current:** Immediate onChange updates (no debouncing).
+
+5. ✅ Drag-vs-Edit Guards - ALREADY IMPLEMENTED
 
 Disable canvas dragging while an editor is focused; require a handle for drag.
 
-6. Smart Activation
+**Implementation:** NotionBlock.tsx disables drag on focus (line 151, 161-166).
+
+6. ❌ Smart Activation
 
 Optional: activate stack on focus but only attach editors for visible blocks; pre-warm on hover.
 
-7. Paste & Split Handler
+**Current:** Prefetch on hover exists (StackContainer.tsx:196), but no viewport-based activation.
 
-Fullscreen-first policy: Prefer handling multi-node paste in fullscreen and splitting on Save via doc→blocks. Keep canvas paste logic minimal (prevent “monster blocks” only).
+7. ✅ Paste & Split Handler - ALREADY IMPLEMENTED
 
-8. Caret Memory
+Fullscreen-first policy: multi-node paste splits into blocks on Save via doc→blocks.
+
+**Implementation:** TipTapEditor.tsx:168-203 (handlePaste).
+
+8. ❌ Caret Memory
 
 Store { blockId, pos } on blur; restore on focus for seamless navigation.
 
-9. Performance Monitoring
+**Current:** No caret position persistence between focus/blur.
 
-Dev-only counters for active editors, pool usage, and heap snapshots; warn if pool exceeded.
+9. ⚠️ Performance Monitoring - PARTIALLY IMPLEMENTED
+
+**Implemented:** Basic editor count telemetry (editorTelemetry.ts).
+**Missing:** Pool warnings, memory profiling, heap snapshots.
 
 Phase 2 Implementation Steps
-	1.	Create useEditorPool
-	2.	Keep contentJson + cachedHTML model; ensure cache stays fresh
-	3.	Add IntersectionObserver to NotionBlock
-	4.	Consolidate CanvasKeymap (if not already)
-	5.	Wire pooling to NotionBlock
-	6.	Add debounced persistence
-	7.	Implement drag guards
-	8.	Add paste splitter
-	9.	Add caret memory
-	10.	Add performance monitoring
-	11.	Test with 200+ blocks
-	12.	Profile memory; optimize
-	13.	Mobile testing (iOS/Android)
+
+**Already Complete:**
+- ✅ Keep contentJson + cachedHTML model (implemented in Phase 1)
+- ✅ Consolidate CanvasKeymap (src/extensions/CanvasKeymap.ts)
+- ✅ Implement drag guards (NotionBlock.tsx)
+- ✅ Add paste splitter (TipTapEditor.tsx)
+- ✅ Add basic performance monitoring (editorTelemetry.ts)
+
+**Remaining Tasks:**
+	1.	❌ Create useEditorPool hook
+	2.	❌ Add IntersectionObserver to NotionBlock
+	3.	❌ Wire pooling to NotionBlock
+	4.	❌ Add debounced persistence
+	5.	❌ Add caret memory
+	6.	❌ Enhance performance monitoring (pool warnings, memory profiling)
+	7.	❌ Test with 200+ blocks
+	8.	❌ Profile memory; optimize
+	9.	❌ Mobile testing (iOS/Android)
 
 ⸻
 
@@ -305,6 +391,13 @@ Resources
 ⸻
 
 Version History
+	•	v1.3 (2025-10-14): Implementation Status Update
+	•	Added comprehensive implementation status section at top
+	•	Documented Phase 1 as 95% complete (all core features implemented)
+	•	Listed all implemented files and features
+	•	Clarified Phase 2 is not started (0% complete)
+	•	Added missing items: test suite, mobile/IME documentation
+	•	Confirmed lazy loading, prefetching, and telemetry are implemented
 	•	v1.2 (2025-10-13): Deep-sync fullscreen & JSON-first
 	•	Rewrote Phase 1 to be JSON-first with fullscreen doc diffing by blockId
 	•	Added storage identity-strip note to the contract

@@ -1,5 +1,6 @@
 {
   "name": "@stack-editor/react",
+  "private": true,
   "version": "0.1.0",
   "description": "A Notion-style stacked block editor built on React Flow",
   "type": "module",
@@ -22,7 +23,8 @@
     "build": "vite build",
     "build:demo": "vite build --mode demo",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm run build"
   },
   "peerDependencies": {
     "@xyflow/react": "^12.0.0",
@@ -50,9 +52,20 @@
     "notion",
     "block-editor",
     "react-flow",
-    "wysiwyg"
+    "wysiwyg",
+    "tiptap",
+    "rich-text",
+    "collaborative"
   ],
-  "author": "",
+  "author": "Artem Tutov",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/artemtutov/stack-editor-package.git"
+  },
+  "bugs": {
+    "url": "https://github.com/artemtutov/stack-editor-package/issues"
+  },
+  "homepage": "https://github.com/artemtutov/stack-editor-package#readme",
   "license": "MIT",
   "dependencies": {
     "@floating-ui/react": "^0.27.16",

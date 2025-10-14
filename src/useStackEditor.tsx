@@ -71,6 +71,62 @@ function applySlashCommand(editor: Editor, cmd: string) {
   }
 }
 
+/**
+ * useStackEditor - Core hook for managing stacked block editor state.
+ *
+ * @description
+ * Provides the complete editor state and API for building custom editor UIs.
+ * Manages block creation, deletion, navigation, drag-and-drop, and layout.
+ *
+ * This hook is used internally by the StackEditor component, but can also be
+ * used directly for more control over the editor's behavior.
+ *
+ * @param args - Editor configuration
+ * @param args.initialBlocks - Initial blocks to render (optional)
+ * @param args.options - Editor configuration options (optional)
+ * @param args.controlled - For controlled mode (advanced, optional)
+ *
+ * @returns Editor state and API
+ * @returns nodes - React Flow nodes representing blocks and containers
+ * @returns nodeTypes - Node type definitions for React Flow
+ * @returns onNodesChange - Handler for React Flow node changes
+ * @returns onNodeDragStart - Handler for drag start
+ * @returns onNodeDrag - Handler for dragging
+ * @returns onNodeDragStop - Handler for drag end
+ * @returns onMove - Handler for viewport changes
+ * @returns focus - Function to focus a specific block
+ * @returns addBelow - Function to add a new block below another
+ * @returns split - Function to split a block at cursor position
+ * @returns delete - Function to delete a block
+ * @returns overlays - React elements for modals, slash menu, drop indicators
+ *
+ * @example
+ * ```tsx
+ * import { useStackEditor } from '@stack-editor/react'
+ * import { ReactFlow } from '@xyflow/react'
+ *
+ * function MyEditor() {
+ *   const editor = useStackEditor({
+ *     initialBlocks: [{ html: '<p>Hello</p>' }],
+ *     options: { blockWidth: 300 }
+ *   })
+ *
+ *   return (
+ *     <>
+ *       <ReactFlow
+ *         nodes={editor.nodes}
+ *         nodeTypes={editor.nodeTypes}
+ *         onNodesChange={editor.onNodesChange}
+ *         onNodeDragStart={editor.onNodeDragStart}
+ *         onNodeDrag={editor.onNodeDrag}
+ *         onNodeDragStop={editor.onNodeDragStop}
+ *       />
+ *       {editor.overlays}
+ *     </>
+ *   )
+ * }
+ * ```
+ */
 export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResult {
   const opts = { ...DEFAULTS, ...(args?.options || {}) }
 

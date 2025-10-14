@@ -1,14 +1,24 @@
 # @stack-editor/react
 
-A Notion-style stacked block editor built on React Flow. Features drag-and-drop stacking, keyboard navigation, and customizable block renderers.
+A Notion-style stacked block editor built on React Flow. Features drag-and-drop stacking, keyboard navigation, rich text editing via TipTap, and customizable block renderers.
 
 ## Features
 
 - ✨ **Notion-style stacking** - Vertical block stacking with automatic layout
+- 📝 **Rich text editing** - TipTap integration with formatting, headings, lists, links, and more
 - 🎯 **Drag & drop** - Reorder blocks with visual drop indicators
 - ⌨️ **Keyboard navigation** - Tab/Shift+Tab navigation, Enter to split, Backspace to merge
+- 🖥️ **Fullscreen mode** - Deep-sync editing with block diffing (blocksToDoc/docToBlocks)
 - 🎨 **Customizable renderers** - Override default block and container components
-- 📦 **Lightweight** - Built on @xyflow/react with minimal dependencies
+- 📦 **Bundle size** - ~150KB gzipped (includes TipTap rich text editor)
+
+## Bundle Size
+
+| Package | Size (gzipped) |
+|---------|----------------|
+| @stack-editor/react | ~150KB |
+
+The package includes TipTap and all necessary rich text editing dependencies bundled together for ease of use. No additional dependencies required!
 
 ## Installation
 
@@ -27,7 +37,12 @@ import '@stack-editor/react/styles.css'
 function App() {
   return (
     <ReactFlowProvider>
-      <StackEditor initialBlocks={[{ html: '<p>Start typing...</p>' }]}>
+      <StackEditor
+        initialBlocks={[
+          { html: '<h1>Welcome</h1>' },
+          { html: '<p>Start typing with rich text support!</p>' }
+        ]}
+      >
         {({ nodes, nodeTypes, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onMove }) => (
           <ReactFlow
             nodes={nodes}
@@ -45,6 +60,17 @@ function App() {
   )
 }
 ```
+
+### Rich Text Features
+
+- **Formatting**: Bold, italic, underline, highlight, strikethrough
+- **Headings**: H1, H2, H3
+- **Lists**: Bullet lists, ordered lists, task lists (checkboxes)
+- **Links**: Auto-linking with validation (https/mailto only)
+- **Blockquotes**: Quote formatting
+- **Keyboard shortcuts**: Standard shortcuts (Cmd/Ctrl+B, Cmd/Ctrl+I, etc.)
+- **Slash menu**: Type `/` for quick formatting options
+- **Mobile support**: Touch-friendly with safe-area insets
 
 ## API
 

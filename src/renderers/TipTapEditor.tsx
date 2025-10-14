@@ -58,7 +58,7 @@ export default function TipTapEditor({
     () => [
       ...baseExtensions,
       CanvasKeymap.configure({
-        onEnterBelow: () => createBlockBelow(),
+        onEnterBelow: (content) => createBlockBelow(content),
         onMergeUp: mergeBlockUp,
         onFocusPrev: focusPrevious,
         onFocusNext: focusNext,

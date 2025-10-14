@@ -405,11 +405,24 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
             )
             .map((n: any) => {
               const data = n.data as BlockData
-              return {
+              const block: InitialBlock = {
                 id: n.id,
                 contentJson: data.contentJson,
                 html: data.cachedHTML,
               }
+
+              // Preserve position, parentId, extent
+              if (n.position) {
+                block.position = { x: n.position.x, y: n.position.y }
+              }
+              if (n.parentId) {
+                block.parentId = n.parentId
+              }
+              if (n.extent) {
+                block.extent = n.extent
+              }
+
+              return block
             })
 
           // Notify parent asynchronously to avoid state update during render

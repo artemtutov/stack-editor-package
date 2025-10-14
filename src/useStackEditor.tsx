@@ -140,6 +140,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   // Active resize tracking
   const activeResizeContainerRef = useRef<string | null>(null)
 
+  // Track initialization to prevent race conditions during load
+  const hasInitializedRef = useRef(false)
+
   // Ref to hold callback injection function (populated later)
   const injectCallbacksRef = useRef<((nodes: Node[]) => Node[]) | null>(null)
 
@@ -460,7 +463,13 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
   // Initialize nodes (and sync controlled mode)
   useEffect(() => {
-    // In controlled mode, always sync from parent value
+    // In controlled mode, prevent re-initialization during first load cycle
+    // to avoid race condition with onChange callback
+    if (args?.controlled && hasInitializedRef.current && nodesRef.current.length > 0) {
+      // Already initialized and has nodes - skip re-init to prevent race condition
+      return
+    }
+
     // In uncontrolled mode, only initialize once
     if (!args?.controlled && nodesRef.current.length > 0) return
 
@@ -565,6 +574,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     laidOut = injectContainerCallbacks(laidOut)
 
     setNodes(laidOut)
+
+    // Mark as initialized after first load to prevent race conditions
+    hasInitializedRef.current = true
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args?.initialBlocks, args?.controlled?.value])
 

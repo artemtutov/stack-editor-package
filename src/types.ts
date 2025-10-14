@@ -56,6 +56,9 @@ export type InitialBlock = {
   id?: string
   contentJson?: JSONContent
   html?: string
+  position?: { x: number; y: number }  // Position hint for block placement
+  parentId?: string                     // Parent node ID for grouping
+  extent?: 'parent'                     // Boundary constraint
 }
 
 export type StackEditorValue = InitialBlock[]

@@ -471,8 +471,11 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     const created: Node[] = initial.map((blk, idx) => {
       const id = blk.id ?? nextBlockId()
       if (!nodeRefsMap.current[id]) nodeRefsMap.current[id] = { current: null }
-      const x = 100
-      const y = 100 + idx * 28
+
+      // Use provided position or calculate default
+      const x = blk.position?.x ?? 100
+      const y = blk.position?.y ?? (100 + idx * 28)
+
       const payload = resolvePayload(blk)
       const data: BlockData = {
         contentJson: payload.json,
@@ -483,13 +486,25 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         isBottomNode: idx === initial.length - 1,
         focusRef: nodeRefsMap.current[id],
       }
-      return {
+
+      // Build node with position and optional parent/extent
+      const node: Node = {
         id,
         type: 'block',
         position: { x, y },
         dragHandle: '.drag-handle',
         data,
-      } as Node
+      }
+
+      // Apply parent/extent if provided
+      if (blk.parentId) {
+        node.parentId = blk.parentId
+      }
+      if (blk.extent) {
+        node.extent = blk.extent
+      }
+
+      return node as Node
     })
 
     // Set up initial stack if multiple blocks

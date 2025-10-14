@@ -159,7 +159,6 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
             <TextAlignButton align="justify" />
           </ToolbarGroup>
           <Spacer />
-          <ToolbarSeparator />
           <ToolbarGroup>
             {onCancel && (
               <Button type="button" data-style="ghost" aria-label="Cancel editing" onClick={onCancel}>
@@ -170,7 +169,6 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
               Save
             </Button>
           </ToolbarGroup>
-          <Spacer />
         </Toolbar>
 
         <div className="tt-content">

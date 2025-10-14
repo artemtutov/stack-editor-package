@@ -95,11 +95,6 @@ export default function FullscreenEditor({ doc, onCancel, onSave }: FullscreenEd
             <TextAlignButton align="justify" />
           </ToolbarGroup>
           <Spacer />
-          <ToolbarSeparator />
-          <ToolbarGroup>
-            <ThemeToggle />
-          </ToolbarGroup>
-          <Spacer />
           {onCancel && (
             <ToolbarGroup>
               <Button type="button" data-style="ghost" onClick={onCancel}>

@@ -6,6 +6,7 @@
   flex-direction: column;
   background: var(--tt-bg-color, #fff);
   color: var(--tt-theme-text, #111827);
+  position: relative;
 }
 
 .tt-shell .tt-toolbar {
@@ -43,6 +44,10 @@
 }
 
 @media (max-width: 480px) {
+  .tt-shell .tt-content {
+    padding-bottom: calc(var(--tt-toolbar-height) + env(safe-area-inset-bottom, 0px));
+  }
+
   .tt-shell .tt-content .tiptap {
     padding: 16px 16px 20vh;
   }

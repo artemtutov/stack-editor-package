@@ -70,7 +70,8 @@ export default function TipTapEditor({
   const baseExtensions = useMemo(() => createEditorExtensions({
     placeholder,
     includeSlashMenu: false,
-    singleBlock: true  // Individual block editors use single-block schema (prevents trailing paragraphs)
+    singleBlock: true,  // Individual block editors use single-block schema (prevents trailing paragraphs)
+    includeTasks: true  // Enable to-do list checkboxes in canvas blocks
   }), [placeholder])
 
   const extensions = useMemo(

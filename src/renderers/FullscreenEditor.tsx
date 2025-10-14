@@ -36,7 +36,8 @@ export default function FullscreenEditor({ doc, onCancel, onSave }: FullscreenEd
   const extensions = React.useMemo(() => createEditorExtensions({
     placeholder: "Type '/' for commands",
     includeSlashMenu: true,
-    includeTrailingNode: true  // Fullscreen editor needs trailing node
+    includeTrailingNode: true,  // Fullscreen editor needs trailing node
+    includeTasks: true  // Enable to-do list checkboxes
   }), [])
 
   const editor = useEditor({
@@ -67,7 +68,7 @@ export default function FullscreenEditor({ doc, onCancel, onSave }: FullscreenEd
           <ToolbarSeparator />
           <ToolbarGroup>
             <HeadingDropdownMenu levels={[1, 2, 3]} />
-            <ListDropdownMenu types={["bulletList", "orderedList"]} />
+            <ListDropdownMenu types={["bulletList", "orderedList", "taskList"]} />
             <BlockquoteButton />
           </ToolbarGroup>
           <ToolbarSeparator />

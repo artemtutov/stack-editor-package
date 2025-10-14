@@ -5,6 +5,8 @@ import Highlight from '@tiptap/extension-highlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import TextAlign from '@tiptap/extension-text-align'
 import Link from '@tiptap/extension-link'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
 // Prefer single-extension package to avoid pulling the whole bundle
 // Switch to this import once the dependency is installed locally:
 // import TrailingNode from '@tiptap/extension-trailing-node'
@@ -17,6 +19,7 @@ export type ExtensionFactoryOptions = {
   includeSlashMenu?: boolean
   includeTrailingNode?: boolean
   singleBlock?: boolean
+  includeTasks?: boolean
 }
 
 const DEFAULT_PLACEHOLDER = "Type '/' for commands"
@@ -28,6 +31,7 @@ export function createEditorExtensions(options?: ExtensionFactoryOptions): Exten
   const placeholderText = options?.placeholder ?? DEFAULT_PLACEHOLDER
   const includeTrailingNode = options?.includeTrailingNode ?? false
   const singleBlock = options?.singleBlock ?? false
+  const includeTasks = options?.includeTasks ?? false
 
   const base: Extensions = [
     // Add single-block Document for individual block editors (prevents trailing paragraphs)
@@ -43,6 +47,8 @@ export function createEditorExtensions(options?: ExtensionFactoryOptions): Exten
       // Disable default Document if using single-block schema
       document: singleBlock ? false : undefined,
     }),
+    // Add TaskList/TaskItem when requested
+    ...(includeTasks ? [TaskList, TaskItem.configure({ nested: false })] : []),
     Underline,
     Highlight,
     Link.configure({

@@ -48,13 +48,13 @@ export function cleanTrailingParagraphs(json: JSONContent): JSONContent {
 }
 
 export function htmlToJson(html: string): JSONContent {
-  const json = generateJSON(html || '', createEditorExtensions())
+  const json = generateJSON(html || '', createEditorExtensions({ includeTasks: true }))
   return ensureJsonContent(json)
 }
 
 export function jsonToHtml(json: JSONContent): string {
   const validJson = ensureJsonContent(json)
-  return generateHTML(validJson, createEditorExtensions())
+  return generateHTML(validJson, createEditorExtensions({ includeTasks: true }))
 }
 
 export function createEmptyPayload(): RichTextPayload {
@@ -88,10 +88,12 @@ function extractInlineContent(node: JSONContent): JSONContent[] {
  * Rules:
  * - paragraph + paragraph/heading → keep prev type, append inline with space
  * - heading + paragraph/heading → keep prev heading, append inline
- * - list + paragraph/heading → append as new listItem
- * - list + list (same) → concat listItems
+ * - list + paragraph/heading → append as new listItem/taskItem
+ * - list + list (same) → concat items
  * - list + list (different) → keep prev type, convert items
  * - blockquote + paragraph → append paragraph inside blockquote
+ *
+ * Supports bulletList, orderedList, and taskList types.
  */
 export function mergePayloads(first: RichTextPayload, second: RichTextPayload): RichTextPayload {
   const firstJson = ensureJsonContent(first.json)
@@ -134,12 +136,13 @@ export function mergePayloads(first: RichTextPayload, second: RichTextPayload): 
       ],
     }
   }
-  // Case 3: list + (paragraph | heading) → append as new listItem
-  else if ((firstNode.type === 'bulletList' || firstNode.type === 'orderedList') &&
+  // Case 3: list + (paragraph | heading) → append as new listItem/taskItem
+  else if ((firstNode.type === 'bulletList' || firstNode.type === 'orderedList' || firstNode.type === 'taskList') &&
            (secondNode.type === 'paragraph' || secondNode.type === 'heading')) {
     const secondInline = extractInlineContent(secondNode)
-    const newListItem: JSONContent = {
-      type: 'listItem',
+    const itemType = firstNode.type === 'taskList' ? 'taskItem' : 'listItem'
+    const newItem: JSONContent = {
+      type: itemType,
       content: [
         {
           type: 'paragraph',
@@ -151,13 +154,13 @@ export function mergePayloads(first: RichTextPayload, second: RichTextPayload): 
       ...firstNode,
       content: [
         ...(firstNode.content || []),
-        newListItem,
+        newItem,
       ],
     }
   }
-  // Case 4: list + list (same type) → concat listItems
+  // Case 4: list + list (same type) → concat items
   else if (firstNode.type === secondNode.type &&
-           (firstNode.type === 'bulletList' || firstNode.type === 'orderedList')) {
+           (firstNode.type === 'bulletList' || firstNode.type === 'orderedList' || firstNode.type === 'taskList')) {
     mergedNode = {
       ...firstNode,
       content: [
@@ -167,13 +170,13 @@ export function mergePayloads(first: RichTextPayload, second: RichTextPayload): 
     }
   }
   // Case 5: list + list (different type) → keep first type, append items
-  else if ((firstNode.type === 'bulletList' || firstNode.type === 'orderedList') &&
-           (secondNode.type === 'bulletList' || secondNode.type === 'orderedList')) {
+  else if ((firstNode.type === 'bulletList' || firstNode.type === 'orderedList' || firstNode.type === 'taskList') &&
+           (secondNode.type === 'bulletList' || secondNode.type === 'orderedList' || secondNode.type === 'taskList')) {
     mergedNode = {
       ...firstNode,
       content: [
         ...(firstNode.content || []),
-        ...(secondNode.content || []), // listItems work in both list types
+        ...(secondNode.content || []), // items work across all list types
       ],
     }
   }

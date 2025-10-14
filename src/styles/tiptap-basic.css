@@ -79,6 +79,120 @@
   padding-left: 1.5rem;
 }
 
+/* Task list (to-do checkboxes) */
+.tiptap .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.5em 0;
+}
+
+.tiptap .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.25em 0;
+}
+
+.tiptap .ProseMirror ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  user-select: none;
+  margin-top: 0;
+}
+
+.tiptap .ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+.tiptap .ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  border-radius: 3px;
+  border: 1.5px solid rgba(55, 53, 47, 0.3);
+  background: transparent;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: all 120ms ease;
+}
+
+.tiptap .ProseMirror ul[data-type="taskList"] input[type="checkbox"]:hover {
+  background: rgba(55, 53, 47, 0.05);
+  border-color: rgba(55, 53, 47, 0.5);
+}
+
+.tiptap .ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background: #2383e2;
+  border-color: #2383e2;
+}
+
+.tiptap .ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+  content: '';
+  display: block;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: translate(4px, 1px) rotate(45deg);
+}
+
+/* Canvas block variant (smaller spacing) */
+.tiptap-editor-wrapper .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.25em 0;
+}
+
+.tiptap-editor-wrapper .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.15em 0;
+}
+
+.tiptap-editor-wrapper .ProseMirror ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  user-select: none;
+  margin-top: 0;
+}
+
+.tiptap-editor-wrapper .ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+.tiptap-editor-wrapper .ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  border-radius: 3px;
+  border: 1.5px solid rgba(55, 53, 47, 0.3);
+  background: transparent;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: all 120ms ease;
+}
+
+.tiptap-editor-wrapper .ProseMirror ul[data-type="taskList"] input[type="checkbox"]:hover {
+  background: rgba(55, 53, 47, 0.05);
+  border-color: rgba(55, 53, 47, 0.5);
+}
+
+.tiptap-editor-wrapper .ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background: #2383e2;
+  border-color: #2383e2;
+}
+
+.tiptap-editor-wrapper .ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+  content: '';
+  display: block;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: translate(4px, 1px) rotate(45deg);
+}
+
 /* Blockquote styles moved to blockquote-node.scss */
 
 .tiptap .ProseMirror code {

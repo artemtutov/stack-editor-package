@@ -36,41 +36,6 @@ const DEFAULTS: Required<StackEditorOptions> = {
   indicatorStabilityPx: 0.5,
 }
 
-// Apply slash command to editor
-function applySlashCommand(editor: Editor, cmd: string) {
-  const chain = editor.chain().focus()
-  switch (cmd) {
-    case 'text':
-      chain.setParagraph().run()
-      break
-    case 'heading1':
-      chain.setHeading({ level: 1 }).run()
-      break
-    case 'heading2':
-      chain.setHeading({ level: 2 }).run()
-      break
-    case 'heading3':
-      chain.setHeading({ level: 3 }).run()
-      break
-    case 'bulletlist':
-      // Clear headings/blocks first, then apply list
-      chain.clearNodes().toggleBulletList().run()
-      break
-    case 'numberlist':
-      // Clear headings/blocks first, then apply list
-      chain.clearNodes().toggleOrderedList().run()
-      break
-    case 'todo':
-      // Clear headings/blocks first, then apply task list
-      chain.clearNodes().toggleTaskList?.().run()
-      break
-    case 'blockquote':
-      // Clear headings/blocks first, then apply blockquote
-      chain.clearNodes().setBlockquote().run()
-      break
-  }
-}
-
 /**
  * useStackEditor - Core hook for managing stacked block editor state.
  *
@@ -206,15 +171,53 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
     const editor = slashMenu.getEditor()
     if (!editor) {
+      console.log('[SLASH MENU] No editor instance found')
       setSlashMenu(null)
       return
     }
 
-    // Delete the "/query" text
-    editor.chain().focus().deleteRange(slashMenu.range).run()
+    console.log('[SLASH MENU] Selected item:', item.id)
+    console.log('[SLASH MENU] Range:', slashMenu.range)
+    console.log('[SLASH MENU] Content before:', editor.getText())
+    console.log('[SLASH MENU] Node type before:', editor.state.selection.$from.parent.type.name)
 
-    // Apply the command
-    applySlashCommand(editor, item.id)
+    // IMPORTANT: Delete the "/query" text and apply command in a SINGLE chain
+    // Running them separately causes TipTap's selection state to get out of sync
+    const chain = editor.chain().focus().deleteRange(slashMenu.range)
+
+    // Apply the transformation command in the same chain
+    switch (item.id) {
+      case 'text':
+        chain.setParagraph()
+        break
+      case 'heading1':
+        chain.setHeading({ level: 1 })
+        break
+      case 'heading2':
+        chain.setHeading({ level: 2 })
+        break
+      case 'heading3':
+        chain.setHeading({ level: 3 })
+        break
+      case 'bulletlist':
+        chain.clearNodes().toggleBulletList()
+        break
+      case 'numberlist':
+        chain.clearNodes().toggleOrderedList()
+        break
+      case 'todo':
+        chain.clearNodes().toggleTaskList?.()
+        break
+      case 'blockquote':
+        chain.clearNodes().setBlockquote()
+        break
+    }
+
+    // Execute the entire chain as one transaction
+    chain.run()
+
+    console.log('[SLASH MENU] Content after:', editor.getText())
+    console.log('[SLASH MENU] Node type after:', editor.state.selection.$from.parent.type.name)
 
     // Close menu
     setSlashMenu(null)
@@ -463,18 +466,28 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
   // Initialize nodes (and sync controlled mode)
   useEffect(() => {
+    console.log('[INIT] useEffect triggered')
+    console.log('[INIT] Controlled mode:', !!args?.controlled)
+    console.log('[INIT] hasInitialized:', hasInitializedRef.current)
+    console.log('[INIT] nodesRef.length:', nodesRef.current.length)
+
     // In controlled mode, prevent re-initialization during first load cycle
     // to avoid race condition with onChange callback
     if (args?.controlled && hasInitializedRef.current && nodesRef.current.length > 0) {
+      console.log('[INIT] ✓ GUARD ACTIVE - Skipping re-initialization')
       // Already initialized and has nodes - skip re-init to prevent race condition
       return
     }
+
+    console.log('[INIT] ⚠️ GUARD BYPASSED - Running initialization')
 
     // In uncontrolled mode, only initialize once
     if (!args?.controlled && nodesRef.current.length > 0) return
 
     const initial: InitialBlock[] =
       args?.controlled?.value ?? args?.initialBlocks ?? [{}]
+
+    console.log('[INIT] Initializing with blocks:', initial.length)
 
     const resolvePayload = (blk: InitialBlock): RichTextPayload => {
       if (blk.contentJson) {

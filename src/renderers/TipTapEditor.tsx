@@ -223,6 +223,9 @@ export default function TipTapEditor({
     const current = ensureJsonContent(editor.getJSON())
     const incoming = cleanTrailingParagraphs(ensureJsonContent(contentJson))
     if (JSON.stringify(current) !== JSON.stringify(incoming)) {
+      console.log('[TIPTAP] Content changed externally - calling setContent')
+      console.log('[TIPTAP] Current:', current)
+      console.log('[TIPTAP] Incoming:', incoming)
       editor.commands.setContent(incoming, { emitUpdate: false })
       // Update ref when content changes externally
       lastKnownJsonRef.current = incoming

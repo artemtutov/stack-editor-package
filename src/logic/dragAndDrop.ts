@@ -3,6 +3,8 @@ import type { Node } from '@xyflow/react'
 export type DropInfo = {
   show: boolean
   targetStackId: string | null
+  targetType: 'container' | 'solo' | null
+  targetNodeId?: string | null
   insertionIndex: number
   position: { x: number; y: number; width: number }
 }
@@ -50,38 +52,75 @@ export function calculateDropIndicator(
 
   // Get all containers
   const containers = allNodes.filter((n: any) => n.type === 'stackContainer')
-  if (containers.length === 0) {
-    return { show: false, targetStackId: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 } }
-  }
 
   // Find target container based on X alignment
   let targetContainer: Node | null = null
   let targetStackId: string | null = null
 
-  // First try to match the start stack if X-aligned
-  if (dragStartStackId) {
-    const startContainer = containers.find((c: any) => c.data?.stackId === dragStartStackId)
-    if (startContainer && Math.abs(pointerX - startContainer.position.x) <= xTolerance) {
-      targetContainer = startContainer
-      targetStackId = dragStartStackId
+  if (containers.length > 0) {
+    // First try to match the start stack if X-aligned
+    if (dragStartStackId) {
+      const startContainer = containers.find((c: any) => c.data?.stackId === dragStartStackId)
+      if (startContainer && Math.abs(pointerX - startContainer.position.x) <= xTolerance) {
+        targetContainer = startContainer
+        targetStackId = dragStartStackId
+      }
+    }
+
+    // Otherwise find closest container within X tolerance
+    if (!targetContainer) {
+      let bestDx = Infinity
+      containers.forEach((container: any) => {
+        const dx = Math.abs(pointerX - container.position.x)
+        if (dx <= xTolerance && dx < bestDx) {
+          bestDx = dx
+          targetContainer = container
+          targetStackId = container.data?.stackId
+        }
+      })
     }
   }
 
-  // Otherwise find closest container within X tolerance
-  if (!targetContainer) {
-    let bestDx = Infinity
-    containers.forEach((container: any) => {
-      const dx = Math.abs(pointerX - container.position.x)
-      if (dx <= xTolerance && dx < bestDx) {
-        bestDx = dx
-        targetContainer = container
-        targetStackId = container.data?.stackId
+  // If no container found, check for solo blocks within 20px tolerance
+  if (!targetContainer || !targetStackId) {
+    const SOLO_TOLERANCE = 20
+    const soloBlocks = (allNodes as any).filter(
+      (n: any) => n.type !== 'stackContainer' && !n.data?.stackId && n.id !== draggedNodeId
+    )
+
+    let bestSoloBlock: any = null
+    let bestDistance = Infinity
+
+    soloBlocks.forEach((block: any) => {
+      const blockAbsPos = getAbsolutePosition(block, allNodes)
+      const dx = Math.abs(pointerX - blockAbsPos.x)
+      const dy = Math.abs(pointerY - blockAbsPos.y)
+      const distance = Math.sqrt(dx * dx + dy * dy)
+
+      if (distance <= SOLO_TOLERANCE && distance < bestDistance) {
+        bestDistance = distance
+        bestSoloBlock = block
       }
     })
-  }
 
-  if (!targetContainer || !targetStackId) {
-    return { show: false, targetStackId: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 } }
+    if (bestSoloBlock) {
+      const soloAbsPos = getAbsolutePosition(bestSoloBlock as Node, allNodes)
+      const { x: vx, y: vy, zoom } = viewport
+      const screenX = vx + soloAbsPos.x * zoom
+      const screenY = vy + soloAbsPos.y * zoom
+      const screenW = blockWidth * zoom
+
+      return {
+        show: true,
+        targetStackId: null,
+        targetType: 'solo' as const,
+        targetNodeId: bestSoloBlock.id as string,
+        insertionIndex: -1,
+        position: { x: screenX, y: screenY, width: screenW },
+      }
+    }
+
+    return { show: false, targetStackId: null, targetType: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 } }
   }
 
   // Get blocks in target stack
@@ -126,6 +165,7 @@ export function calculateDropIndicator(
   return {
     show: true,
     targetStackId,
+    targetType: 'container',
     insertionIndex,
     position: { x: screenX, y: screenY, width: screenW },
   }

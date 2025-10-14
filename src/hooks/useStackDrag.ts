@@ -7,7 +7,7 @@ import {
   type DropInfo,
 } from '../logic/dragAndDrop'
 import { ensureInsertionOrder, calculateStackLayout } from '../logic/stackLayout'
-import { assignBlockToStack } from '../logic/stackState'
+import { assignBlockToStack, nextStackId } from '../logic/stackState'
 
 export type UseStackDragOptions = {
   xTolerance: number
@@ -54,7 +54,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
     insertionIndex: -1,
   })
 
-  const dropInfoRef = useRef<DropInfo>(dropIndicator)
+  const dropInfoRef = useRef<DropInfo>({ ...dropIndicator, targetType: null })
   const isDraggingStackRef = useRef(false)
   const dragStartStackIdRef = useRef<string | null>(null)
 
@@ -143,7 +143,54 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
           const oldNode = nds.find((n) => n.id === node.id) as any
           const oldStackId = oldNode?.data?.stackId as string | undefined
           const isGroupDrag = isDraggingStackRef.current
-          const dropInfo = dropInfoRef.current || { show: false, targetStackId: null, insertionIndex: -1 }
+          const dropInfo = dropInfoRef.current || { show: false, targetStackId: null, insertionIndex: -1, targetType: null }
+
+          // Handle solo block attachment - create a new stack
+          if (!isGroupDrag && dropInfo.show && dropInfo.targetType === 'solo' && dropInfo.targetNodeId) {
+            const targetNode = nds.find((n) => n.id === dropInfo.targetNodeId) as any
+            if (targetNode && !targetNode.data?.stackId) {
+              const newStackId = nextStackId()
+
+              // Assign both blocks to the new stack
+              let updatedNodes = assignBlockToStack(node.id, newStackId, nds)
+              updatedNodes = assignBlockToStack(dropInfo.targetNodeId, newStackId, updatedNodes)
+
+              // Determine insertion order based on Y position
+              const draggedAbsY = oldNode.position.y
+              const targetAbsY = targetNode.position.y
+              const draggedFirst = draggedAbsY < targetAbsY
+
+              updatedNodes = updatedNodes.map((n: any) => {
+                if (n.id === node.id) {
+                  return { ...n, data: { ...n.data, insertionOrder: draggedFirst ? 0 : 1 } }
+                }
+                if (n.id === dropInfo.targetNodeId) {
+                  return { ...n, data: { ...n.data, insertionOrder: draggedFirst ? 1 : 0 } }
+                }
+                return n
+              })
+
+              // Handle old stack cleanup if dragged block was in a stack
+              if (oldStackId) {
+                const remaining = updatedNodes.filter((n: any) => n.data?.stackId === oldStackId && n.type !== 'stackContainer')
+                if (remaining.length > 0) {
+                  updatedNodes = syncContainers(updatedNodes)
+                  updatedNodes = calculateStackLayout(oldStackId, updatedNodes, gap, headerHeight)
+                }
+              }
+
+              // Apply layout to new stack
+              updatedNodes = syncContainers(updatedNodes)
+              updatedNodes = calculateStackLayout(newStackId, updatedNodes, gap, headerHeight)
+
+              isDraggingStackRef.current = false
+              dropInfoRef.current = { show: false, targetStackId: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 }, targetType: null }
+
+              const final = updateBottomFlags(updatedNodes)
+              return syncContainers(final)
+            }
+          }
+
           const newStackId = isGroupDrag ? oldStackId : dropInfo.show ? (dropInfo.targetStackId as string) : undefined
 
           let updatedNodes = assignBlockToStack(node.id, newStackId, nds)
@@ -174,7 +221,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
           }
 
           isDraggingStackRef.current = false
-          dropInfoRef.current = { show: false, targetStackId: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 } }
+          dropInfoRef.current = { show: false, targetStackId: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 }, targetType: null }
 
           const final = updateBottomFlags(updatedNodes)
           return syncContainers(final)

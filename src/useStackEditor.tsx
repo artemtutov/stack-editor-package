@@ -23,7 +23,7 @@ import { createEmptyPayload, htmlToJson, jsonToHtml, ensureJsonContent, CURRENT_
 
 // Default options
 const DEFAULTS: Required<StackEditorOptions> = {
-  blockWidth: 200,
+  blockWidth: 242,
   gap: 2,
   headerHeight: 28,
   enableContainerDrag: true,
@@ -379,6 +379,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                 schemaVersion: CURRENT_SCHEMA_VERSION,
               } } : ni))),
         onAdd: (initialContent?: RichTextPayload) => blockOps.addBelow(n.id, initialContent),
+        onAddMultiple: (payloads: RichTextPayload[]) => blockOps.addMultipleBelow(n.id, payloads),
         onHeightChange: handleHeightChange,
         onTabNext: (id: string) => tabHandlers.current.handleTabNext?.(id),
         onTabPrev: (id: string) => tabHandlers.current.handleTabPrev?.(id),

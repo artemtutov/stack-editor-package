@@ -19,6 +19,7 @@ export type BlockData = {
   // callbacks populated by the hook; included here for convenience typing
   onContentUpdate?: (payload: RichTextPayload) => void
   onAdd?: (initialContent?: RichTextPayload) => void
+  onAddMultiple?: (payloads: RichTextPayload[]) => void
   onHeightChange?: (id: string, height: number) => void
   onTabNext?: (id: string) => void
   onTabPrev?: (id: string) => void

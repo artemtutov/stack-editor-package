@@ -57,6 +57,17 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
     [data, dispatchEvent, id]
   )
 
+  const handleAddMultipleBelow = useCallback(
+    (payloads: RichTextPayload[]) => {
+      if (data.onAddMultiple) {
+        data.onAddMultiple(payloads)
+      } else {
+        dispatchEvent('block:addMultipleBelow', { id, payloads })
+      }
+    },
+    [data, dispatchEvent, id]
+  )
+
   const handleSlashCommand = useCallback(() => {
     const rect = blockRef.current?.getBoundingClientRect() || null
     if (data.onSlashCommand) {
@@ -161,6 +172,7 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
           placeholder={data.placeholder}
           onContentUpdate={handleContentUpdate}
           createBlockBelow={handleAddBelow}
+          createMultipleBlocksBelow={handleAddMultipleBelow}
           mergeBlockUp={handleMergeUp}
           focusPrevious={handleFocusPrev}
           focusNext={handleFocusNext}

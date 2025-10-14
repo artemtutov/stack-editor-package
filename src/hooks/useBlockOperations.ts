@@ -56,6 +56,7 @@ export type UseBlockOperationsResult = {
   handleDelete: (nodeId: string) => void
   handleMergeUp: (nodeId: string) => void
   addBelow: (currentNodeId: string, initialContent?: RichTextPayload) => void
+  addMultipleBelow: (currentNodeId: string, payloads: RichTextPayload[]) => void
   handleSplit: (nodeId: string, before: RichTextPayload, after: RichTextPayload) => void
   replaceStackContent: (stackId: string, blocks: Array<{ id?: string; content: RichTextPayload }>) => Array<{ id: string; content: RichTextPayload }>
   createBlockCallbacks: (nodeId: string, stackId: string, setNodes: any) => Partial<BlockCallbacks>
@@ -352,6 +353,188 @@ export function useBlockOperations(
     [setNodes, nodeRefsMap, nodesRef, ensureInsertionOrder, applyLayout, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, gap, headerHeight, blockWidth]
   )
 
+  const addMultipleBelow = useCallback(
+    (currentNodeId: string, payloads: RichTextPayload[]) => {
+      if (payloads.length === 0) return
+
+      const newIds = payloads.map(() => {
+        const id = nextBlockId()
+        if (!nodeRefsMap.current[id]) nodeRefsMap.current[id] = { current: null }
+        return id
+      })
+
+      const currentNodeCheck = nodesRef.current.find((n) => n.id === currentNodeId) as any
+      if (!currentNodeCheck) return
+
+      const isCreatingNewStack = !currentNodeCheck.data.stackId
+      const stackId = currentNodeCheck.data.stackId || nextStackId()
+
+      setNodes((nds) => {
+        const currentNode = nds.find((n) => n.id === currentNodeId) as any
+        if (!currentNode) return nds
+
+        // Create callbacks factory for new blocks
+        const createCallbacks = (blockId: string) => ({
+          onContentUpdate: (nextPayload: RichTextPayload) =>
+            setNodes((inner) =>
+              inner.map((ni: any) => (ni.id === blockId ? applyPayloadToNode(ni, nextPayload) : ni))
+            ),
+          onAdd: (initial?: RichTextPayload) => addBelowRef.current(blockId, initial),
+          onHeightChange: handleHeightChange,
+          onTabNext: (id: string) => tabHandlersRef.current.handleTabNext?.(id),
+          onTabPrev: (id: string) => tabHandlersRef.current.handleTabPrev?.(id),
+          onArrowUp: (id: string) => tabHandlersRef.current.handleArrowUp?.(id),
+          onArrowDown: (id: string) => tabHandlersRef.current.handleArrowDown?.(id),
+          onSlashCommand: handleSlashCommand,
+          onDelete: handleDelete,
+          onSplit: (id: string, before: RichTextPayload, after: RichTextPayload) => handleSplitRef.current(id, before, after),
+          onMergeUp: handleMergeUp,
+        })
+
+        if (isCreatingNewStack) {
+          const currentHeight = currentNode.data.height || 24
+          const topPadding = 4
+          const sidePadding = 4
+          const bottomPadding = 4
+
+          const containerX = currentNode.position.x - sidePadding
+          const containerY = currentNode.position.y - (headerHeight + topPadding)
+
+          // Estimate total height (will be adjusted by applyLayout)
+          const estimatedTotalHeight = headerHeight + topPadding + (currentHeight + gap) * (payloads.length + 1) + bottomPadding
+          const containerWidth = blockWidth + 8
+
+          const containerNode: Node = {
+            id: stackId,
+            type: 'stackContainer',
+            position: { x: containerX, y: containerY },
+            data: { width: containerWidth, height: estimatedTotalHeight, stackId },
+            selectable: true,
+            draggable: true,
+            resizable: false,
+            zIndex: -1,
+          } as Node
+
+          const updatedCurrentNode = {
+            ...currentNode,
+            parentId: stackId,
+            position: { x: sidePadding, y: headerHeight + topPadding },
+            className: 'in-stack',
+            data: {
+              ...currentNode.data,
+              stackId,
+              insertionOrder: 0,
+              isBottomNode: false,
+            },
+          }
+
+          const newNodes: Node[] = payloads.map((payload, index) => {
+            const newId = newIds[index]
+            return {
+              id: newId,
+              type: 'block',
+              parentId: stackId,
+              position: { x: sidePadding, y: headerHeight + topPadding + (currentHeight + gap) * (index + 1) },
+              dragHandle: '.drag-handle',
+              className: 'in-stack',
+              data: {
+                contentJson: payload.json,
+                cachedHTML: payload.html,
+                schemaVersion: CURRENT_SCHEMA_VERSION,
+                stackId,
+                isBottomNode: index === payloads.length - 1,
+                height: 24,
+                insertionOrder: index + 1,
+                focusRef: nodeRefsMap.current[newId],
+                ...createCallbacks(newId),
+              } as BlockData,
+            }
+          })
+
+          const updatedNodes = [
+            containerNode,
+            ...nds.filter((n) => n.id !== currentNodeId),
+            applyPayloadToNode(updatedCurrentNode, blockDataToPayload(updatedCurrentNode.data as BlockData)),
+            ...newNodes,
+          ]
+
+          // Focus the first new block
+          if (newIds.length > 0) {
+            setTimeout(() => nodeRefsMap.current[newIds[0]]?.current?.focus?.(), 50)
+          }
+
+          return applyLayout(stackId, updatedNodes)
+        }
+
+        // Adding to existing stack
+        const newNodes: Node[] = payloads.map((payload, index) => {
+          const newId = newIds[index]
+          return {
+            id: newId,
+            type: 'block',
+            parentId: stackId,
+            position: { x: 4, y: 0 },
+            dragHandle: '.drag-handle',
+            data: {
+              contentJson: payload.json,
+              cachedHTML: payload.html,
+              schemaVersion: CURRENT_SCHEMA_VERSION,
+              stackId,
+              isBottomNode: index === payloads.length - 1,
+              height: 24,
+              insertionOrder: undefined, // Will be set below
+              focusRef: nodeRefsMap.current[newId],
+              ...createCallbacks(newId),
+            } as BlockData,
+          }
+        })
+
+        let updatedNodes = [...nds, ...newNodes]
+        updatedNodes = ensureInsertionOrder(stackId, updatedNodes)
+
+        // Reorder blocks to insert new blocks right after current block
+        const blocks = updatedNodes.filter(
+          (n: any) => n.data?.stackId === stackId && n.type !== 'stackContainer'
+        )
+        const ordered = [...blocks].sort(
+          (a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0)
+        )
+
+        // Filter out new blocks to get the others
+        const newIdSet = new Set(newIds)
+        const others = ordered.filter((b: any) => !newIdSet.has(b.id))
+
+        // Find current block in others array to get correct insert index
+        const curIdxInOthers = others.findIndex((b: any) => b.id === currentNodeId)
+        const insertIndex = curIdxInOthers === -1 ? others.length : curIdxInOthers + 1
+
+        // Insert all new blocks after current block
+        const reordered = [
+          ...others.slice(0, insertIndex),
+          ...newNodes.map(n => updatedNodes.find(un => un.id === n.id) as Node),
+          ...others.slice(insertIndex),
+        ]
+
+        const idToOrder = new Map(reordered.map((b: any, i: number) => [b.id, i]))
+        updatedNodes = updatedNodes.map((n: any) =>
+          n.data?.stackId === stackId && n.type !== 'stackContainer'
+            ? { ...n, data: { ...n.data, insertionOrder: idToOrder.get(n.id) } }
+            : n
+        )
+
+        const final = applyLayout(stackId, updatedNodes)
+
+        // Focus the first new block
+        if (newIds.length > 0) {
+          setTimeout(() => nodeRefsMap.current[newIds[0]]?.current?.focus?.(), 50)
+        }
+
+        return final
+      })
+    },
+    [setNodes, nodeRefsMap, nodesRef, ensureInsertionOrder, applyLayout, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, gap, headerHeight, blockWidth]
+  )
+
   const handleSplit = useCallback<(nodeId: string, before: RichTextPayload, after: RichTextPayload) => void>(
     (nodeId, before, after) => {
       const beforePayload = toPayload(before)
@@ -605,6 +788,7 @@ export function useBlockOperations(
     handleDelete,
     handleMergeUp,
     addBelow,
+    addMultipleBelow,
     handleSplit,
     replaceStackContent,
     createBlockCallbacks,

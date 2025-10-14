@@ -16,6 +16,7 @@ export type TipTapEditorProps = {
   autoFocus?: boolean
   onContentUpdate: (payload: RichTextPayload) => void
   createBlockBelow: (initialContent?: RichTextPayload) => void
+  createMultipleBlocksBelow?: (payloads: RichTextPayload[]) => void
   mergeBlockUp: () => void
   focusPrevious: () => void
   focusNext: () => void
@@ -34,6 +35,7 @@ export default function TipTapEditor({
   autoFocus = false,
   onContentUpdate,
   createBlockBelow,
+  createMultipleBlocksBelow,
   mergeBlockUp,
   focusPrevious,
   focusNext,
@@ -116,20 +118,25 @@ export default function TipTapEditor({
           return false
         }
 
-        const editorInstance = editorRef.current
-        if (!editorInstance) {
+        if (!editor) {
           return false
         }
 
         event.preventDefault()
 
         const firstBlock = blocks[0]
-        editorInstance.chain().setContent(firstBlock.json, { emitUpdate: false }).focus('end').run()
+        editor.chain().setContent(firstBlock.json, { emitUpdate: false }).focus('end').run()
         onContentUpdate(firstBlock)
 
-        blocks.slice(1).forEach((payload) => {
-          createBlockBelow(payload)
-        })
+        // Use batch creation if available, otherwise fall back to sequential creation
+        const remainingBlocks = blocks.slice(1)
+        if (createMultipleBlocksBelow) {
+          createMultipleBlocksBelow(remainingBlocks)
+        } else {
+          remainingBlocks.forEach((payload) => {
+            createBlockBelow(payload)
+          })
+        }
 
         return true
       },

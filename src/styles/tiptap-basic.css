@@ -4,7 +4,7 @@
 
 .tiptap-editor-wrapper .ProseMirror {
   min-height: 24px;
-  padding: 0 6px;
+  padding: 3px 8px 3px 16px;
   outline: none;
   white-space: pre-wrap;
   font-size: 14px;
@@ -12,17 +12,28 @@
   color: #111;
 }
 
-.tiptap-editor-wrapper .ProseMirror p,
-.tiptap-editor-wrapper .ProseMirror h1,
-.tiptap-editor-wrapper .ProseMirror h2,
-.tiptap-editor-wrapper .ProseMirror h3,
-.tiptap-editor-wrapper .ProseMirror ul,
-.tiptap-editor-wrapper .ProseMirror ol {
-  margin: 0;
-}
-
 .tiptap-editor-wrapper .ProseMirror[contenteditable='true'] {
   cursor: text;
+}
+
+/* Remove boundary margins to prevent double spacing between separate blocks */
+.tiptap-editor-wrapper .ProseMirror > :first-child {
+  margin-top: 0 !important;
+}
+
+.tiptap-editor-wrapper .ProseMirror > :last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Explicit rules for lists to ensure they're covered */
+.tiptap-editor-wrapper .ProseMirror > ul:first-child,
+.tiptap-editor-wrapper .ProseMirror > ol:first-child {
+  margin-top: 0 !important;
+}
+
+.tiptap-editor-wrapper .ProseMirror > ul:last-child,
+.tiptap-editor-wrapper .ProseMirror > ol:last-child {
+  margin-bottom: 0 !important;
 }
 
 .tiptap-editor-wrapper .ProseMirror p.is-editor-empty:first-child::before {
@@ -41,16 +52,6 @@
 
 .tiptap :focus {
   outline: none;
-}
-
-.tiptap .ProseMirror p,
-.tiptap .ProseMirror h1,
-.tiptap .ProseMirror h2,
-.tiptap .ProseMirror h3,
-.tiptap .ProseMirror ul,
-.tiptap .ProseMirror ol,
-.tiptap .ProseMirror blockquote {
-  margin: 0;
 }
 
 .tiptap .ProseMirror h1 {
@@ -78,11 +79,7 @@
   padding-left: 1.5rem;
 }
 
-.tiptap .ProseMirror blockquote {
-  padding: 0.25em 1em;
-  color: #374151;
-  border-left: 3px solid #e5e7eb;
-}
+/* Blockquote styles moved to blockquote-node.scss */
 
 .tiptap .ProseMirror code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;

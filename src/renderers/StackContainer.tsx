@@ -105,7 +105,7 @@ export default function StackContainer({ id, data, selected }: Props) {
         position={Position.Left}
         variant={ResizeControlVariant.Line}
         color="orange"
-        minWidth={200}
+        minWidth={250}
         maxWidth={600}
         onResizeStart={() => onResizeStart?.(id, 'left')}
         onResize={(_, params) => onResize?.(id, params.width)}
@@ -115,7 +115,7 @@ export default function StackContainer({ id, data, selected }: Props) {
         position={Position.Right}
         variant={ResizeControlVariant.Line}
         color="orange"
-        minWidth={200}
+        minWidth={250}
         maxWidth={600}
         onResizeStart={() => onResizeStart?.(id, 'right')}
         onResize={(_, params) => onResize?.(id, params.width)}

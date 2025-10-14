@@ -82,6 +82,7 @@
     background: #ffffff;
     transition: background-color 20ms ease, box-shadow 150ms ease;
     min-height: 24px;
+    min-width: 200px;
     width: 100%; /* Take full width of wrapper */
     border: 0; /* keep layout width identical whether selected or not */
     line-height: 1;

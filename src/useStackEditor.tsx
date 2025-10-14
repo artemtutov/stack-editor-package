@@ -387,15 +387,41 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   // Populate ref for use in early callbacks
   injectCallbacksRef.current = injectContainerCallbacks
 
-  // Wrapped setNodes that automatically injects callbacks
+  // Wrapped setNodes that automatically injects callbacks AND notifies parent in controlled mode
   const setNodes = useCallback(
     (updater: Node[] | ((nodes: Node[]) => Node[])) => {
       setNodesBase((prev) => {
         const next = typeof updater === 'function' ? updater(prev) : updater
-        return injectContainerCallbacks(next)
+        const injected = injectContainerCallbacks(next)
+
+        // Controlled mode: notify parent of changes
+        if (args?.controlled) {
+          // Convert nodes back to InitialBlock format
+          const blocks: InitialBlock[] = injected
+            .filter(n => n.type === 'block')
+            .sort((a: any, b: any) =>
+              ((a.data as BlockData).insertionOrder ?? 0) -
+              ((b.data as BlockData).insertionOrder ?? 0)
+            )
+            .map((n: any) => {
+              const data = n.data as BlockData
+              return {
+                id: n.id,
+                contentJson: data.contentJson,
+                html: data.cachedHTML,
+              }
+            })
+
+          // Notify parent asynchronously to avoid state update during render
+          setTimeout(() => {
+            args.controlled!.onChange(blocks)
+          }, 0)
+        }
+
+        return injected
       })
     },
-    [setNodesBase, injectContainerCallbacks]
+    [setNodesBase, injectContainerCallbacks, args?.controlled]
   )
 
   // Populate ref for use in early callbacks
@@ -419,9 +445,11 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     []
   )
 
-  // Initialize nodes
+  // Initialize nodes (and sync controlled mode)
   useEffect(() => {
-    if (nodesRef.current.length > 0) return
+    // In controlled mode, always sync from parent value
+    // In uncontrolled mode, only initialize once
+    if (!args?.controlled && nodesRef.current.length > 0) return
 
     const initial: InitialBlock[] =
       args?.controlled?.value ?? args?.initialBlocks ?? [{}]
@@ -510,7 +538,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
     setNodes(laidOut)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [args?.initialBlocks, args?.controlled])
+  }, [args?.initialBlocks, args?.controlled?.value])
 
   // Overlays
   const overlays = (

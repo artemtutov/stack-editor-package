@@ -1,9 +1,11 @@
 {
-  "name": "@stack-editor/react",
-  "private": true,
+  "name": "@artemtutov/stack-editor-react",
   "version": "0.1.0",
   "description": "A Notion-style stacked block editor built on React Flow",
   "type": "module",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -35,6 +37,7 @@
   "devDependencies": {
     "@types/dompurify": "^3.0.5",
     "@types/lodash.throttle": "^4.1.9",
+    "@types/node": "^24.7.2",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
@@ -79,17 +82,17 @@
     "@tiptap/extension-placeholder": "3.6.6",
     "@tiptap/extension-subscript": "3.6.6",
     "@tiptap/extension-superscript": "3.6.6",
-    "@tiptap/extension-task-list": "3.6.6",
     "@tiptap/extension-task-item": "3.6.6",
+    "@tiptap/extension-task-list": "3.6.6",
     "@tiptap/extension-text-align": "3.6.6",
     "@tiptap/extension-typography": "3.6.6",
     "@tiptap/extension-underline": "3.6.6",
     "@tiptap/extensions": "3.6.6",
-    "@tiptap/suggestion": "3.6.6",
     "@tiptap/html": "3.6.6",
     "@tiptap/pm": "3.6.6",
     "@tiptap/react": "3.6.6",
     "@tiptap/starter-kit": "3.6.6",
+    "@tiptap/suggestion": "3.6.6",
     "dompurify": "^3.2.7",
     "lodash.throttle": "^4.1.1",
     "react-hotkeys-hook": "^5.1.0"

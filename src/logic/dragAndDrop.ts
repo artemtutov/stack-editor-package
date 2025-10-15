@@ -35,6 +35,28 @@ export function getAbsolutePosition(
 }
 
 /**
+ * Check if a point is within a container's rectangular boundary (with tolerance padding)
+ */
+function isWithinContainerBounds(
+  pointerX: number,
+  pointerY: number,
+  container: any,
+  tolerance: number,
+  blockWidth: number
+): boolean {
+  const containerX = container.position.x
+  const containerY = container.position.y
+  const containerWidth = container.data?.width || blockWidth
+  const containerHeight = container.data?.height || container.measured?.height || 100
+
+  // Check if pointer is within rectangular bounds with tolerance padding
+  const withinX = pointerX >= containerX - tolerance && pointerX <= containerX + containerWidth + tolerance
+  const withinY = pointerY >= containerY - tolerance && pointerY <= containerY + containerHeight + tolerance
+
+  return withinX && withinY
+}
+
+/**
  * Calculate where a dragged node should be dropped in a stack
  */
 export function calculateDropIndicator(
@@ -53,29 +75,37 @@ export function calculateDropIndicator(
   // Get all containers
   const containers = allNodes.filter((n: any) => n.type === 'stackContainer')
 
-  // Find target container based on X alignment
+  // Find target container based on rectangular boundary with tolerance
   let targetContainer: Node | null = null
   let targetStackId: string | null = null
 
   if (containers.length > 0) {
-    // First try to match the start stack if X-aligned
+    // First try to match the start stack if within rectangular bounds
     if (dragStartStackId) {
       const startContainer = containers.find((c: any) => c.data?.stackId === dragStartStackId)
-      if (startContainer && Math.abs(pointerX - startContainer.position.x) <= xTolerance) {
+      if (startContainer && isWithinContainerBounds(pointerX, pointerY, startContainer, xTolerance, blockWidth)) {
         targetContainer = startContainer
         targetStackId = dragStartStackId
       }
     }
 
-    // Otherwise find closest container within X tolerance
+    // Otherwise find closest container within rectangular bounds
     if (!targetContainer) {
-      let bestDx = Infinity
+      let bestDistance = Infinity
       containers.forEach((container: any) => {
-        const dx = Math.abs(pointerX - container.position.x)
-        if (dx <= xTolerance && dx < bestDx) {
-          bestDx = dx
-          targetContainer = container
-          targetStackId = container.data?.stackId
+        if (isWithinContainerBounds(pointerX, pointerY, container, xTolerance, blockWidth)) {
+          // Calculate distance to container center for tie-breaking
+          const containerCenterX = container.position.x + ((container.data?.width || blockWidth) / 2)
+          const containerCenterY = container.position.y + ((container.data?.height || container.measured?.height || 100) / 2)
+          const distance = Math.sqrt(
+            Math.pow(pointerX - containerCenterX, 2) + Math.pow(pointerY - containerCenterY, 2)
+          )
+
+          if (distance < bestDistance) {
+            bestDistance = distance
+            targetContainer = container
+            targetStackId = container.data?.stackId
+          }
         }
       })
     }

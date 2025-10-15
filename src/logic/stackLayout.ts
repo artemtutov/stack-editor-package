@@ -220,13 +220,12 @@ export function syncStackContainers(
         }
 
         const { className, parentId, ...rest } = block
+        // Remove stackId property completely (not just set to undefined)
+        const { stackId, ...restData } = rest.data || {}
         updatedBlocks.push({
           ...rest,
           position: absolutePosition,
-          data: {
-            ...rest.data,
-            stackId: undefined  // Remove stackId for single blocks
-          }
+          data: restData
         } as Node)
       })
     }

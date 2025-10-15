@@ -223,8 +223,9 @@ export function useBlockOperations(
       const currentNodeCheck = nodesRef.current.find((n) => n.id === currentNodeId) as any
       if (!currentNodeCheck) return
 
-      const isCreatingNewStack = !currentNodeCheck.data.stackId
-      const stackId = currentNodeCheck.data.stackId || nextStackId()
+      const isCreatingNewStack = !currentNodeCheck.data?.stackId
+      // Always generate a new stackId to prevent reusing stale/old stackIds
+      const stackId = isCreatingNewStack ? nextStackId() : currentNodeCheck.data.stackId
 
       setNodes((nds) => {
         const currentNode = nds.find((n) => n.id === currentNodeId) as any
@@ -394,8 +395,9 @@ export function useBlockOperations(
       const currentNodeCheck = nodesRef.current.find((n) => n.id === currentNodeId) as any
       if (!currentNodeCheck) return
 
-      const isCreatingNewStack = !currentNodeCheck.data.stackId
-      const stackId = currentNodeCheck.data.stackId || nextStackId()
+      const isCreatingNewStack = !currentNodeCheck.data?.stackId
+      // Always generate a new stackId to prevent reusing stale/old stackIds
+      const stackId = isCreatingNewStack ? nextStackId() : currentNodeCheck.data.stackId
 
       setNodes((nds) => {
         const currentNode = nds.find((n) => n.id === currentNodeId) as any
@@ -575,7 +577,8 @@ export function useBlockOperations(
       if (!nodeCheck) return
 
       const isCreatingNewStack = !nodeCheck.data?.stackId
-      const stackId = nodeCheck.data?.stackId || nextStackId()
+      // Always generate a new stackId to prevent reusing stale/old stackIds
+      const stackId = isCreatingNewStack ? nextStackId() : nodeCheck.data.stackId
 
       setNodes((nds) => {
         const node = nds.find((n) => n.id === nodeId) as any

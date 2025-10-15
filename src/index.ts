@@ -9,7 +9,6 @@ export type {
   StackEditorOptions,
   InitialBlock,
   StackEditorValue,
-  StackEditorControlled,
   StackEditorHookArgs,
   StackEditorHookResult,
 } from './types'

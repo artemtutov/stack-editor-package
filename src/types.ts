@@ -59,20 +59,14 @@ export type InitialBlock = {
   position?: { x: number; y: number }  // Position hint for block placement
   parentId?: string                     // Parent node ID for grouping
   extent?: 'parent'                     // Boundary constraint
+  stackId?: string                      // Stack relationship (preserved across saves)
 }
 
 export type StackEditorValue = InitialBlock[]
 
-export type StackEditorControlled = {
-  value: StackEditorValue
-  onChange: (value: StackEditorValue) => void
-}
-
 export type StackEditorHookArgs = {
   initialBlocks?: StackEditorValue
   options?: StackEditorOptions
-  // controlled mode (optional)
-  controlled?: StackEditorControlled
 }
 
 export type StackEditorHookResult = {
@@ -88,6 +82,9 @@ export type StackEditorHookResult = {
   addBelow: (blockId: string, initialContent?: RichTextPayload) => void
   split: (blockId: string, before: RichTextPayload, after: RichTextPayload) => void
   delete: (blockId: string) => void
+  getBlocks: () => InitialBlock[]
+  createBlock: (block: Partial<InitialBlock>) => void
+  loadBlocks: (blocks: InitialBlock[]) => void
   // overlays to render alongside ReactFlow
   overlays: React.ReactNode
 }

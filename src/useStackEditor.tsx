@@ -49,7 +49,6 @@ const DEFAULTS: Required<StackEditorOptions> = {
  * @param args - Editor configuration
  * @param args.initialBlocks - Initial blocks to render (optional)
  * @param args.options - Editor configuration options (optional)
- * @param args.controlled - For controlled mode (advanced, optional)
  *
  * @returns Editor state and API
  * @returns nodes - React Flow nodes representing blocks and containers
@@ -104,9 +103,6 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
   // Active resize tracking
   const activeResizeContainerRef = useRef<string | null>(null)
-
-  // Track initialization to prevent race conditions during load
-  const hasInitializedRef = useRef(false)
 
   // Ref to hold callback injection function (populated later)
   const injectCallbacksRef = useRef<((nodes: Node[]) => Node[]) | null>(null)
@@ -290,6 +286,214 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     nodeRefsMap.current[blockId]?.current?.focus?.()
   }, [])
 
+  // Get current blocks in InitialBlock format (for saving)
+  const getBlocks = useCallback((): InitialBlock[] => {
+    return nodesRef.current
+      .filter(n => n.type === 'block')
+      .sort((a: any, b: any) =>
+        ((a.data as BlockData).insertionOrder ?? 0) -
+        ((b.data as BlockData).insertionOrder ?? 0)
+      )
+      .map((n: any) => {
+        const data = n.data as BlockData
+        const block: InitialBlock = {
+          id: n.id,
+          contentJson: data.contentJson,
+          html: data.cachedHTML,
+        }
+
+        // Preserve position, parentId, extent, stackId
+        if (n.position) {
+          block.position = { x: n.position.x, y: n.position.y }
+        }
+        if (n.parentId) {
+          block.parentId = n.parentId
+        }
+        if (n.extent) {
+          block.extent = n.extent
+        }
+        if (data.stackId) {
+          block.stackId = data.stackId
+        }
+
+        return block
+      })
+  }, [])
+
+  // Create a new block imperatively (without full reinitialization)
+  const createBlock = useCallback((block: Partial<InitialBlock>) => {
+    const id = block.id ?? nextBlockId()
+    if (!nodeRefsMap.current[id]) nodeRefsMap.current[id] = { current: null }
+
+    // Resolve content payload
+    let payload: RichTextPayload
+    if (block.contentJson) {
+      const json = ensureJsonContent(block.contentJson)
+      const html = sanitizeAndSave(jsonToHtml(json))
+      payload = { json, html }
+    } else if (block.html) {
+      const json = htmlToJson(block.html)
+      const html = sanitizeAndSave(block.html)
+      payload = { json, html }
+    } else {
+      payload = createEmptyPayload()
+    }
+
+    // Get current max insertion order
+    const maxOrder = nodesRef.current
+      .filter(n => n.type === 'block')
+      .reduce((max, n: any) => Math.max(max, (n.data as BlockData).insertionOrder ?? 0), -1)
+
+    // Create block data
+    const data: BlockData = {
+      contentJson: payload.json,
+      cachedHTML: payload.html,
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      height: 24,
+      insertionOrder: maxOrder + 1,
+      isBottomNode: true,  // New blocks are always at bottom initially
+      focusRef: nodeRefsMap.current[id],
+      stackId: block.stackId,
+    }
+
+    // Build node
+    const newNode: Node = {
+      id,
+      type: 'block',
+      position: block.position ?? { x: 100, y: 100 },
+      dragHandle: '.drag-handle',
+      data,
+    }
+
+    // Apply optional fields
+    if (block.parentId) {
+      newNode.parentId = block.parentId
+    }
+    if (block.extent) {
+      newNode.extent = block.extent
+    }
+
+    // Add the new node and wire up callbacks
+    setNodes((prevNodes) => {
+      // Update isBottomNode flags
+      const updated = prevNodes.map((n: any) =>
+        n.type === 'block'
+          ? { ...n, data: { ...n.data, isBottomNode: false } }
+          : n
+      )
+
+      // Wire callbacks for new node
+      const wired = {
+        ...newNode,
+        data: {
+          ...(newNode.data as BlockData),
+          onContentUpdate: (payload: RichTextPayload) =>
+            setNodes((inner) => inner.map((ni: any) => (ni.id === id ? { ...ni, data: {
+                  ...(ni.data as BlockData),
+                  contentJson: ensureJsonContent(payload.json),
+                  cachedHTML: sanitizeAndSave(payload.html),
+                  schemaVersion: CURRENT_SCHEMA_VERSION,
+                } } : ni))),
+          onAdd: (initialContent?: RichTextPayload) => blockOps.addBelow(id, initialContent),
+          onAddMultiple: (payloads: RichTextPayload[]) => blockOps.addMultipleBelow(id, payloads),
+          onHeightChange: handleHeightChange,
+          onTabNext: (id: string) => tabHandlers.current.handleTabNext?.(id),
+          onTabPrev: (id: string) => tabHandlers.current.handleTabPrev?.(id),
+          onArrowUp: (id: string) => tabHandlers.current.handleArrowUp?.(id),
+          onArrowDown: (id: string) => tabHandlers.current.handleArrowDown?.(id),
+          onSlashCommand: handleSlashCommand,
+          onDelete: blockOps.handleDelete,
+          onSplit: blockOps.handleSplit,
+          onMergeUp: blockOps.handleMergeUp,
+        } as BlockData,
+      }
+
+      return syncContainers([...updated, wired]) as Node[]
+    })
+  }, [blockOps, handleHeightChange, handleSlashCommand, syncContainers])
+
+  // Load blocks imperatively (replaces all blocks, used for canvas load)
+  const loadBlocks = useCallback((blocks: InitialBlock[]) => {
+    // Helper to resolve payload
+    const resolvePayload = (blk: InitialBlock): RichTextPayload => {
+      if (blk.contentJson) {
+        const json = ensureJsonContent(blk.contentJson)
+        const html = sanitizeAndSave(jsonToHtml(json))
+        return { json, html }
+      }
+      if (blk.html !== undefined) {
+        const json = htmlToJson(blk.html)
+        const html = sanitizeAndSave(blk.html)
+        return { json, html }
+      }
+      return createEmptyPayload()
+    }
+
+    // Create nodes from blocks
+    const created: Node[] = blocks.map((blk, idx) => {
+      const id = blk.id ?? nextBlockId()
+      if (!nodeRefsMap.current[id]) nodeRefsMap.current[id] = { current: null }
+
+      const x = blk.position?.x ?? 100
+      const y = blk.position?.y ?? (100 + idx * 28)
+
+      const payload = resolvePayload(blk)
+      const data: BlockData = {
+        contentJson: payload.json,
+        cachedHTML: payload.html,
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        height: 24,
+        insertionOrder: idx,
+        isBottomNode: idx === blocks.length - 1,
+        focusRef: nodeRefsMap.current[id],
+        stackId: blk.stackId,
+      }
+
+      const node: Node = {
+        id,
+        type: 'block',
+        position: { x, y },
+        dragHandle: '.drag-handle',
+        data,
+      }
+
+      if (blk.parentId) node.parentId = blk.parentId
+      if (blk.extent) node.extent = blk.extent
+
+      return node as Node
+    })
+
+    // Wire up callbacks
+    const wired = created.map((n) => ({
+      ...n,
+      data: {
+        ...(n.data as BlockData),
+        onContentUpdate: (payload) =>
+          setNodes((inner) => inner.map((ni: any) => (ni.id === n.id ? { ...ni, data: {
+                ...(ni.data as BlockData),
+                contentJson: ensureJsonContent(payload.json),
+                cachedHTML: sanitizeAndSave(payload.html),
+                schemaVersion: CURRENT_SCHEMA_VERSION,
+              } } : ni))),
+        onAdd: (initialContent?: RichTextPayload) => blockOps.addBelow(n.id, initialContent),
+        onAddMultiple: (payloads: RichTextPayload[]) => blockOps.addMultipleBelow(n.id, payloads),
+        onHeightChange: handleHeightChange,
+        onTabNext: (id: string) => tabHandlers.current.handleTabNext?.(id),
+        onTabPrev: (id: string) => tabHandlers.current.handleTabPrev?.(id),
+        onArrowUp: (id: string) => tabHandlers.current.handleArrowUp?.(id),
+        onArrowDown: (id: string) => tabHandlers.current.handleArrowDown?.(id),
+        onSlashCommand: handleSlashCommand,
+        onDelete: blockOps.handleDelete,
+        onSplit: blockOps.handleSplit,
+        onMergeUp: blockOps.handleMergeUp,
+      } as BlockData,
+    }))
+
+    // Apply layout and set nodes
+    const laidOut = syncContainers(wired) as Node[]
+    setNodes(laidOut)
+  }, [blockOps, handleHeightChange, handleSlashCommand, syncContainers])
+
   // Resize callbacks
   const onContainerResizeStart = useCallback(
     (containerId: string, side: 'left' | 'right') => {
@@ -393,54 +597,16 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   // Populate ref for use in early callbacks
   injectCallbacksRef.current = injectContainerCallbacks
 
-  // Wrapped setNodes that automatically injects callbacks AND notifies parent in controlled mode
+  // Wrapped setNodes that automatically injects callbacks
   const setNodes = useCallback(
     (updater: Node[] | ((nodes: Node[]) => Node[])) => {
       setNodesBase((prev) => {
         const next = typeof updater === 'function' ? updater(prev) : updater
         const injected = injectContainerCallbacks(next)
-
-        // Controlled mode: notify parent of changes
-        if (args?.controlled) {
-          // Convert nodes back to InitialBlock format
-          const blocks: InitialBlock[] = injected
-            .filter(n => n.type === 'block')
-            .sort((a: any, b: any) =>
-              ((a.data as BlockData).insertionOrder ?? 0) -
-              ((b.data as BlockData).insertionOrder ?? 0)
-            )
-            .map((n: any) => {
-              const data = n.data as BlockData
-              const block: InitialBlock = {
-                id: n.id,
-                contentJson: data.contentJson,
-                html: data.cachedHTML,
-              }
-
-              // Preserve position, parentId, extent
-              if (n.position) {
-                block.position = { x: n.position.x, y: n.position.y }
-              }
-              if (n.parentId) {
-                block.parentId = n.parentId
-              }
-              if (n.extent) {
-                block.extent = n.extent
-              }
-
-              return block
-            })
-
-          // Notify parent asynchronously to avoid state update during render
-          setTimeout(() => {
-            args.controlled!.onChange(blocks)
-          }, 0)
-        }
-
         return injected
       })
     },
-    [setNodesBase, injectContainerCallbacks, args?.controlled]
+    [setNodesBase, injectContainerCallbacks]
   )
 
   // Populate ref for use in early callbacks
@@ -464,30 +630,14 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     []
   )
 
-  // Initialize nodes (and sync controlled mode)
+  // Initialize nodes on mount only (no more controlled mode reinitialization)
   useEffect(() => {
-    console.log('[INIT] useEffect triggered')
-    console.log('[INIT] Controlled mode:', !!args?.controlled)
-    console.log('[INIT] hasInitialized:', hasInitializedRef.current)
-    console.log('[INIT] nodesRef.length:', nodesRef.current.length)
-
-    // In controlled mode, prevent re-initialization during first load cycle
-    // to avoid race condition with onChange callback
-    if (args?.controlled && hasInitializedRef.current && nodesRef.current.length > 0) {
-      console.log('[INIT] ✓ GUARD ACTIVE - Skipping re-initialization')
-      // Already initialized and has nodes - skip re-init to prevent race condition
-      return
+    // Only initialize once on mount
+    if (nodesRef.current.length > 0) {
+      return // Already initialized
     }
 
-    console.log('[INIT] ⚠️ GUARD BYPASSED - Running initialization')
-
-    // In uncontrolled mode, only initialize once
-    if (!args?.controlled && nodesRef.current.length > 0) return
-
-    const initial: InitialBlock[] =
-      args?.controlled?.value ?? args?.initialBlocks ?? [{}]
-
-    console.log('[INIT] Initializing with blocks:', initial.length)
+    const initial: InitialBlock[] = args?.initialBlocks ?? [{}]
 
     const resolvePayload = (blk: InitialBlock): RichTextPayload => {
       if (blk.contentJson) {
@@ -542,12 +692,29 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       return node as Node
     })
 
-    // Set up initial stack if multiple blocks
-    const stackId = created.length > 1 ? nextStackId() : undefined
-    const withStack = created.map((n) => ({
-      ...n,
-      data: { ...(n.data as BlockData), stackId },
-    }))
+    // Only auto-stack blocks that don't have explicit positions
+    // Blocks with positions (from Canvas clicks/toolbar) should stay standalone
+    const blocksWithPositions = created.filter(n => {
+      const blk = initial.find(b => b.id === n.id)
+      return blk?.position !== undefined
+    })
+    const blocksWithoutPositions = created.filter(n => !blocksWithPositions.includes(n))
+
+    // Only create a stack if we have multiple blocks WITHOUT explicit positions
+    const stackId = blocksWithoutPositions.length > 1 ? nextStackId() : undefined
+    const withStack = created.map((n) => {
+      const blk = initial.find(b => b.id === n.id)
+      const hasExplicitPosition = blocksWithPositions.includes(n)
+
+      return {
+        ...n,
+        data: {
+          ...(n.data as BlockData),
+          // Use incoming stackId if present, otherwise assign based on position
+          stackId: blk?.stackId ?? (hasExplicitPosition ? undefined : stackId)
+        },
+      }
+    })
 
     // Wire up callbacks
     const wired = withStack.map((n) => ({
@@ -575,11 +742,13 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       } as BlockData,
     }))
 
-    // Apply layout (sync containers will handle parent-child setup)
+    // Apply layout only to blocks that are actually in a stack
     let laidOut: Node[] = wired
-    if (created.length > 1) {
-      laidOut = applyLayout(stackId!, wired) as Node[]
+    if (stackId) {
+      // Only apply stack layout if we actually created a stack
+      laidOut = applyLayout(stackId, wired) as Node[]
     } else {
+      // For standalone blocks, just sync containers (no stacking)
       laidOut = syncContainers(wired) as Node[]
     }
 
@@ -587,11 +756,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     laidOut = injectContainerCallbacks(laidOut)
 
     setNodes(laidOut)
-
-    // Mark as initialized after first load to prevent race conditions
-    hasInitializedRef.current = true
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [args?.initialBlocks, args?.controlled?.value])
+  }, [])
 
   // Overlays
   const overlays = (
@@ -650,6 +816,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     addBelow: blockOps.addBelow,
     split: blockOps.handleSplit,
     delete: blockOps.handleDelete,
+    getBlocks,
+    createBlock,
+    loadBlocks,
     overlays,
   }
 }

@@ -60,6 +60,7 @@ export type InitialBlock = {
   parentId?: string                     // Parent node ID for grouping
   extent?: 'parent'                     // Boundary constraint
   stackId?: string                      // Stack relationship (preserved across saves)
+  containerPosition?: { x: number; y: number }  // Position of parent container (for stack persistence)
 }
 
 export type StackEditorValue = InitialBlock[]

@@ -288,6 +288,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
   // Get current blocks in InitialBlock format (for saving)
   const getBlocks = useCallback((): InitialBlock[] => {
+    // Get all container nodes for position lookup
+    const containers = nodesRef.current.filter(n => n.type === 'stackContainer')
+
     return nodesRef.current
       .filter(n => n.type === 'block')
       .sort((a: any, b: any) =>
@@ -314,6 +317,12 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         }
         if (data.stackId) {
           block.stackId = data.stackId
+
+          // Save container position for stack persistence
+          const container = containers.find(c => c.id === data.stackId)
+          if (container?.position) {
+            block.containerPosition = { x: container.position.x, y: container.position.y }
+          }
         }
 
         return block
@@ -429,7 +438,29 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       return createEmptyPayload()
     }
 
-    // Create nodes from blocks
+    // 1. Extract container positions from blocks
+    const containerPositions = new Map<string, { x: number; y: number }>()
+    blocks.forEach(blk => {
+      if (blk.containerPosition && blk.stackId) {
+        containerPositions.set(blk.stackId, blk.containerPosition)
+      }
+    })
+
+    // 2. Pre-create container nodes with saved positions
+    const preCreatedContainers: Node[] = Array.from(containerPositions).map(([id, pos]) => ({
+      id,
+      type: 'stackContainer',
+      position: pos,
+      style: { width: opts.blockWidth + 8 },
+      data: {
+        stackId: id,
+        width: opts.blockWidth + 8,
+        manualWidth: undefined,
+        isDragging: false,
+      },
+    }))
+
+    // 3. Create nodes from blocks
     const created: Node[] = blocks.map((blk, idx) => {
       const id = blk.id ?? nextBlockId()
       if (!nodeRefsMap.current[id]) nodeRefsMap.current[id] = { current: null }
@@ -463,36 +494,42 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       return node as Node
     })
 
-    // Wire up callbacks
-    const wired = created.map((n) => ({
-      ...n,
-      data: {
-        ...(n.data as BlockData),
-        onContentUpdate: (payload) =>
-          setNodes((inner) => inner.map((ni: any) => (ni.id === n.id ? { ...ni, data: {
-                ...(ni.data as BlockData),
-                contentJson: ensureJsonContent(payload.json),
-                cachedHTML: sanitizeAndSave(payload.html),
-                schemaVersion: CURRENT_SCHEMA_VERSION,
-              } } : ni))),
-        onAdd: (initialContent?: RichTextPayload) => blockOps.addBelow(n.id, initialContent),
-        onAddMultiple: (payloads: RichTextPayload[]) => blockOps.addMultipleBelow(n.id, payloads),
-        onHeightChange: handleHeightChange,
-        onTabNext: (id: string) => tabHandlers.current.handleTabNext?.(id),
-        onTabPrev: (id: string) => tabHandlers.current.handleTabPrev?.(id),
-        onArrowUp: (id: string) => tabHandlers.current.handleArrowUp?.(id),
-        onArrowDown: (id: string) => tabHandlers.current.handleArrowDown?.(id),
-        onSlashCommand: handleSlashCommand,
-        onDelete: blockOps.handleDelete,
-        onSplit: blockOps.handleSplit,
-        onMergeUp: blockOps.handleMergeUp,
-      } as BlockData,
-    }))
+    // 4. Combine containers and blocks, then wire up callbacks
+    const combined = [...preCreatedContainers, ...created]
+    const wired = combined.map((n) => {
+      // Only wire callbacks for blocks, not containers
+      if (n.type !== 'block') return n
 
-    // Apply layout and set nodes
+      return {
+        ...n,
+        data: {
+          ...(n.data as BlockData),
+          onContentUpdate: (payload) =>
+            setNodes((inner) => inner.map((ni: any) => (ni.id === n.id ? { ...ni, data: {
+                  ...(ni.data as BlockData),
+                  contentJson: ensureJsonContent(payload.json),
+                  cachedHTML: sanitizeAndSave(payload.html),
+                  schemaVersion: CURRENT_SCHEMA_VERSION,
+                } } : ni))),
+          onAdd: (initialContent?: RichTextPayload) => blockOps.addBelow(n.id, initialContent),
+          onAddMultiple: (payloads: RichTextPayload[]) => blockOps.addMultipleBelow(n.id, payloads),
+          onHeightChange: handleHeightChange,
+          onTabNext: (id: string) => tabHandlers.current.handleTabNext?.(id),
+          onTabPrev: (id: string) => tabHandlers.current.handleTabPrev?.(id),
+          onArrowUp: (id: string) => tabHandlers.current.handleArrowUp?.(id),
+          onArrowDown: (id: string) => tabHandlers.current.handleArrowDown?.(id),
+          onSlashCommand: handleSlashCommand,
+          onDelete: blockOps.handleDelete,
+          onSplit: blockOps.handleSplit,
+          onMergeUp: blockOps.handleMergeUp,
+        } as BlockData,
+      }
+    })
+
+    // 5. Apply layout - syncContainers will see existing containers and preserve their positions
     const laidOut = syncContainers(wired) as Node[]
     setNodes(laidOut)
-  }, [blockOps, handleHeightChange, handleSlashCommand, syncContainers])
+  }, [blockOps, handleHeightChange, handleSlashCommand, syncContainers, opts.blockWidth])
 
   // Resize callbacks
   const onContainerResizeStart = useCallback(

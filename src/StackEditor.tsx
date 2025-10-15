@@ -5,9 +5,22 @@ import NotionBlock from './renderers/NotionBlock'
 import StackContainer from './renderers/StackContainer'
 import type { StackEditorHookArgs, StackEditorHookResult } from './types'
 
+// Import CSS variables FIRST (defines all --tt-* variables globally)
+import './styles/_variables.scss'
+
 // Import CSS once from the wrapper (or consumer can import directly)
 import './styles/block-editor.css'
 import './styles/tiptap-basic.css'
+
+// Import all tiptap-node styles (Notion-style formatting)
+import './components/tiptap-node/blockquote-node/blockquote-node.scss'
+import './components/tiptap-node/code-block-node/code-block-node.scss'
+import './components/tiptap-node/heading-node/heading-node.scss'
+import './components/tiptap-node/horizontal-rule-node/horizontal-rule-node.scss'
+import './components/tiptap-node/image-node/image-node.scss'
+import './components/tiptap-node/list-node/list-node.scss'
+import './components/tiptap-node/paragraph-node/paragraph-node.scss'
+// Note: image-upload-node.scss is imported in its component file
 
 export type StackEditorSlots = {
   renderBlock?: any

@@ -111,7 +111,6 @@ export default function TipTapEditor({
     },
     editorProps: {
       attributes: {
-        class: 'tiptap',
         'data-placeholder': placeholder,
         spellcheck: 'true',
         role: 'textbox',
@@ -275,7 +274,9 @@ export default function TipTapEditor({
       onPointerDown={(event) => event.stopPropagation()}
       onTouchStart={(event) => event.stopPropagation()}
     >
-      <EditorContent editor={editor} />
+      <div className="tiptap">
+        <EditorContent editor={editor} />
+      </div>
     </div>
   )
 }

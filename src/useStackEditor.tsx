@@ -607,6 +607,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
               ...n,
               data: {
                 ...n.data,
+                position: n.position,
                 onResizeStart: onContainerResizeStart,
                 onResize: onContainerResize,
                 onResizeEnd: onContainerResizeEnd,

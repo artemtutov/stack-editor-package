@@ -165,7 +165,7 @@
   height: 2px;
   background: rgb(35, 131, 226);
   pointer-events: none;
-  z-index: 1000;
+  z-index: 9999;
   box-shadow: 0 0 4px rgba(35, 131, 226, 0.4);
   animation: dropIndicatorPulse 1.5s ease-in-out infinite;
 }

@@ -13,6 +13,7 @@ type Props = {
     width?: number
     height?: number
     stackId?: string
+    position?: { x: number; y: number }
     onResizeStart?: (containerId: string, side: 'left' | 'right') => void
     onResize?: (containerId: string, newWidth: number) => void
     onResizeEnd?: (containerId: string) => void
@@ -98,6 +99,7 @@ export default function StackContainer({ id, data, selected }: Props) {
         pointerEvents: 'auto',
         transition: 'box-shadow 0.2s, border 0.2s',
         cursor: 'grab',
+        position: 'relative',
       }}
     >
       {/* Horizontal resize handles */}

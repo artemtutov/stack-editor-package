@@ -136,11 +136,11 @@ export default function StackContainer({ id, data, selected }: Props) {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
+            gap: 12,
             opacity: 1,
             pointerEvents: 'auto',
             cursor: 'grab',
-            padding: '8px 8px 8px 22px',
+            padding: '8px 8px 8px 10px',
             borderRadius: 3,
             transition: 'all 0.15s ease',
             userSelect: 'none',
@@ -158,14 +158,15 @@ export default function StackContainer({ id, data, selected }: Props) {
             el.style.cursor = 'grab'
           }}
         >
-          <span style={{ fontSize: 10, lineHeight: 1, color: '#888' }}>⋮⋮</span>
+          <span style={{ fontSize: 14, lineHeight: 1, color: '#888', cursor: 'grab' }}>⋮⋮</span>
           <span
             style={{
-              fontSize: 9,
+              fontSize: 12,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
-              color: '#666',
+              color: '#9ca3af',
               fontWeight: 500,
+              cursor: 'grab',
             }}
           >
             STACK
@@ -184,7 +185,7 @@ export default function StackContainer({ id, data, selected }: Props) {
             cursor: 'pointer',
             padding: '8px',
             borderRadius: '4px',
-            display: 'flex',
+            display: 'none',
             alignItems: 'center',
             justifyContent: 'center',
             color: '#666',

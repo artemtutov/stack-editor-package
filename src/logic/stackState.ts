@@ -16,7 +16,21 @@ export function nextBlockId(): string {
  * Generate unique stack/container IDs
  */
 let globalStackCounter = 0
-export function nextStackId(): string {
+export function nextStackId(allNodes?: Node[]): string {
+  if (allNodes && allNodes.length > 0) {
+    // Calculate the maximum existing container number
+    const maxStackNum = Math.max(
+      -1,
+      ...allNodes
+        .filter((n: any) => n.data?.stackId && typeof n.data.stackId === 'string')
+        .map((n: any) => {
+          const match = n.data.stackId.match(/^container_(\d+)$/)
+          return match ? parseInt(match[1], 10) : -1
+        })
+    )
+    return `container_${maxStackNum + 1}`
+  }
+  // Fallback to global counter if no nodes provided
   return `container_${globalStackCounter++}`
 }
 

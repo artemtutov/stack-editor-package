@@ -49,7 +49,13 @@ export const CanvasKeymap = Extension.create<CanvasKeymapOptions>({
             const $pos = state.doc.resolve($from.pos)
             const isInList = $pos.parent.type.name === 'listItem'
 
-            if (event.key === 'Enter' && !event.shiftKey && !isInList) {
+            // Check if user is interacting with any menu or dropdown
+            // We check the DOM directly since focus remains on the editor even when menus are open
+            const hasSlashMenu = !!document.querySelector('.slash-menu')
+            const hasDropdownMenu = !!document.querySelector('[data-radix-popper-content-wrapper]')
+            const isMenuOpen = hasSlashMenu || hasDropdownMenu
+
+            if (event.key === 'Enter' && !event.shiftKey && !isInList && !isMenuOpen) {
               event.preventDefault()
 
               // If cursor is at the end, just create an empty block below
@@ -106,13 +112,13 @@ export const CanvasKeymap = Extension.create<CanvasKeymapOptions>({
               return true
             }
 
-            if (event.key === 'ArrowUp' && atStart) {
+            if (event.key === 'ArrowUp' && atStart && !isMenuOpen) {
               event.preventDefault()
               onFocusPrev()
               return true
             }
 
-            if (event.key === 'ArrowDown' && atEnd) {
+            if (event.key === 'ArrowDown' && atEnd && !isMenuOpen) {
               event.preventDefault()
               onFocusNext()
               return true

@@ -149,7 +149,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
           if (!isGroupDrag && dropInfo.show && dropInfo.targetType === 'solo' && dropInfo.targetNodeId) {
             const targetNode = nds.find((n) => n.id === dropInfo.targetNodeId) as any
             if (targetNode && !targetNode.data?.stackId) {
-              const newStackId = nextStackId()
+              const newStackId = nextStackId(nds)
 
               // Assign both blocks to the new stack
               let updatedNodes = assignBlockToStack(node.id, newStackId, nds)

@@ -739,7 +739,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     const blocksWithoutPositions = created.filter(n => !blocksWithPositions.includes(n))
 
     // Only create a stack if we have multiple blocks WITHOUT explicit positions
-    const stackId = blocksWithoutPositions.length > 1 ? nextStackId() : undefined
+    const stackId = blocksWithoutPositions.length > 1 ? nextStackId(nodesRef.current.length > 0 ? nodesRef.current : created) : undefined
     const withStack = created.map((n) => {
       const blk = initial.find(b => b.id === n.id)
       const hasExplicitPosition = blocksWithPositions.includes(n)

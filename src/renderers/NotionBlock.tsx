@@ -137,27 +137,14 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
 
   return (
     <div className="notion-block-wrapper" style={{ width: '100%' }}>
-      {/* Left Controls (+ button and drag handle) */}
-      <div className="block-left-controls">
-        <button
-          className="add-button"
-          onClick={() => {
-            handleAddBelow()
-          }}
-          title="Add block below"
-        >
-          +
-        </button>
-        <button className="drag-handle" data-drag-handle disabled={isFocused}>
-          <span style={{ fontSize: 14, lineHeight: 1 }}>⋮⋮</span>
-        </button>
-      </div>
-
       <div
         ref={blockRef}
         className={`notion-block ${isFocused ? 'focused' : ''} ${selected ? 'selected' : ''} ${
           data.stackId ? 'in-stack' : ''
         }`}
+        style={{
+          paddingLeft: '0px',
+        }}
         onPointerDown={(event) => {
           const target = event.target as HTMLElement
           if (isFocused && !target.closest('.drag-handle')) {
@@ -165,6 +152,20 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
           }
         }}
       >
+        <button
+          className="drag-handle"
+          data-drag-handle
+          disabled={isFocused}
+          style={{
+            position: 'absolute',
+            left: '4px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            zIndex: 10,
+          }}
+        >
+          <span style={{ fontSize: 14, lineHeight: 1 }}>⋮⋮</span>
+        </button>
         <TipTapEditor
           blockId={id}
           contentJson={data.contentJson}

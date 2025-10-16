@@ -44,6 +44,18 @@
   background-color: rgba(55, 53, 47, 0.12);
 }
 
+/* Hide drag handle by default on desktop, show on hover */
+@media (hover: hover) {
+  .drag-handle {
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+
+  .notion-block-wrapper:hover .drag-handle {
+    opacity: 1;
+  }
+}
+
 /* Add button on LEFT side */
 .add-button {
   width: 18px;

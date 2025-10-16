@@ -45,6 +45,8 @@ export const CanvasKeymap = Extension.create<CanvasKeymapOptions>({
 
             const atStart = view.endOfTextblock('backward', state)
             const atEnd = view.endOfTextblock('forward', state)
+            const atTopLine = view.endOfTextblock('up', state)
+            const atBottomLine = view.endOfTextblock('down', state)
 
             const $pos = state.doc.resolve($from.pos)
             const isInList = $pos.parent.type.name === 'listItem'
@@ -54,6 +56,38 @@ export const CanvasKeymap = Extension.create<CanvasKeymapOptions>({
             const hasSlashMenu = !!document.querySelector('.slash-menu')
             const hasDropdownMenu = !!document.querySelector('[data-radix-popper-content-wrapper]')
             const isMenuOpen = hasSlashMenu || hasDropdownMenu
+
+            // Helper to find ancestor node by name
+            const findAncestor = (name: string) => {
+              for (let d = $from.depth; d >= 0; d--) {
+                const n = $from.node(d)
+                if (n.type.name === name) return { node: n, depth: d }
+              }
+              return null
+            }
+
+            // Notion-style list behavior: Enter in empty last item exits list
+            const listItem = findAncestor('listItem') || findAncestor('taskItem')
+
+            if (event.key === 'Enter' && !event.shiftKey && !isMenuOpen && listItem) {
+              const itemNode = listItem.node
+              const isEmptyItem = itemNode.textContent.trim().length === 0
+              const listDepth = listItem.depth - 1 // parent is bulletList / orderedList / taskList
+              const listNode = listDepth >= 0 ? $from.node(listDepth) : null
+              const isLastItem = !!listNode && listNode.lastChild === itemNode
+
+              // Notion-style exit: empty last item → exit list and create new block below
+              if (isEmptyItem && isLastItem) {
+                event.preventDefault()
+                // Just create new block outside list, don't delete the empty item
+                // (deleting it can remove the entire block structure)
+                onEnterBelow()
+                return true
+              }
+
+              // otherwise: regular Enter = new list item (TipTap default)
+              return false
+            }
 
             if (event.key === 'Enter' && !event.shiftKey && !isInList && !isMenuOpen) {
               event.preventDefault()
@@ -93,7 +127,7 @@ export const CanvasKeymap = Extension.create<CanvasKeymapOptions>({
               return true
             }
 
-            if (event.key === 'Backspace' && atStart && $from.sameParent($to)) {
+            if (event.key === 'Backspace' && $from.pos === 1 && $from.sameParent($to)) {
               // Guard against IME composition
               if ((view as any).composing) {
                 return false
@@ -112,13 +146,34 @@ export const CanvasKeymap = Extension.create<CanvasKeymapOptions>({
               return true
             }
 
-            if (event.key === 'ArrowUp' && atStart && !isMenuOpen) {
+            // Jump blocks when at top/bottom line of current block
+            if (event.key === 'ArrowUp' && atTopLine && !isMenuOpen) {
+              // If in a list, only jump if we're at the first item
+              if (listItem) {
+                const listDepth = listItem.depth - 1
+                const listNode = listDepth >= 0 ? $from.node(listDepth) : null
+                const isFirstItem = !!listNode && listNode.firstChild === listItem.node
+                if (!isFirstItem) {
+                  return false // Let TipTap navigate to previous list item
+                }
+              }
+
               event.preventDefault()
               onFocusPrev()
               return true
             }
 
-            if (event.key === 'ArrowDown' && atEnd && !isMenuOpen) {
+            if (event.key === 'ArrowDown' && atBottomLine && !isMenuOpen) {
+              // If in a list, only jump if we're at the last item
+              if (listItem) {
+                const listDepth = listItem.depth - 1
+                const listNode = listDepth >= 0 ? $from.node(listDepth) : null
+                const isLastItem = !!listNode && listNode.lastChild === listItem.node
+                if (!isLastItem) {
+                  return false // Let TipTap navigate to next list item
+                }
+              }
+
               event.preventDefault()
               onFocusNext()
               return true

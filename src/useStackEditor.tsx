@@ -110,6 +110,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   // Ref to hold wrapped setNodes function (populated later)
   const setNodesRef = useRef<((updater: Node[] | ((nodes: Node[]) => Node[])) => void) | null>(null)
 
+  // Ref to hold stack expand callbacks (stackId -> openFullscreen function)
+  const stackExpandCallbacksRef = useRef<Map<string, () => void>>(new Map())
+
   // Slash menu state
   const [slashMenu, setSlashMenu] = useState<null | (SlashPayload & { position: { x: number; y: number } })>(null)
 
@@ -624,6 +627,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                   stackId: string,
                   blocks: Array<{ id?: string; content: RichTextPayload }>
                 ) => blockOps.replaceStackContent(stackId, blocks),
+                registerStackExpand: (stackId: string, openFn: () => void) => {
+                  stackExpandCallbacksRef.current.set(stackId, openFn)
+                },
               },
             }
           : n
@@ -797,6 +803,19 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Expand stack (open fullscreen modal for a stack)
+  const expandStack = useCallback((stackId: string) => {
+    console.log('[expandStack] Called with stackId:', stackId);
+    console.log('[expandStack] Registered callbacks:', Array.from(stackExpandCallbacksRef.current.keys()));
+    const expandFn = stackExpandCallbacksRef.current.get(stackId)
+    if (expandFn) {
+      console.log('[expandStack] Found callback, executing...');
+      expandFn()
+    } else {
+      console.warn(`[expandStack] No expand callback registered for stackId: ${stackId}`)
+    }
+  }, [])
+
   // Overlays
   const overlays = (
     <>
@@ -857,6 +876,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     getBlocks,
     createBlock,
     loadBlocks,
+    expandStack,
     overlays,
   }
 }

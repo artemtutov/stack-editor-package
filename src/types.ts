@@ -86,6 +86,7 @@ export type StackEditorHookResult = {
   getBlocks: () => InitialBlock[]
   createBlock: (block: Partial<InitialBlock>) => void
   loadBlocks: (blocks: InitialBlock[]) => void
+  expandStack: (stackId: string) => void
   // overlays to render alongside ReactFlow
   overlays: React.ReactNode
 }

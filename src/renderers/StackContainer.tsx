@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, Suspense, lazy } from 'react'
+import { useCallback, useMemo, useState, Suspense, lazy, useEffect } from 'react'
 import { NodeResizeControl, Position, ResizeControlVariant } from '@xyflow/react'
 import FullscreenModal from './FullscreenModal'
 const LazyFullscreenStackEditor = lazy(() => import('./FullscreenStackEditor'))
@@ -19,6 +19,7 @@ type Props = {
     onResizeEnd?: (containerId: string) => void
     getStackBlocks?: () => any[]
     replaceStackContent?: (stackId: string, blocks: Array<{ id?: string; content: RichTextPayload }>) => void
+    registerStackExpand?: (stackId: string, openFn: () => void) => void
   }
   selected?: boolean
 }
@@ -70,6 +71,15 @@ export default function StackContainer({ id, data, selected }: Props) {
     },
     [data, fullscreenState]
   )
+
+  // Register expand callback with the hook
+  useEffect(() => {
+    console.log('[StackContainer] useEffect - stackId:', data.stackId, 'registerStackExpand:', !!data.registerStackExpand);
+    if (data.stackId && data.registerStackExpand) {
+      console.log('[StackContainer] Registering expand callback for stackId:', data.stackId);
+      data.registerStackExpand(data.stackId, handleOpenFullscreen)
+    }
+  }, [data.stackId, data.registerStackExpand, handleOpenFullscreen])
 
   return (
     <>

@@ -16,6 +16,8 @@ import { MarkButton } from '../components/tiptap-ui/mark-button'
 import { TextAlignButton } from '../components/tiptap-ui/text-align-button'
 import { LinkPopover } from '../components/tiptap-ui/link-popover'
 import { HighlighterIcon } from '../components/tiptap-icons/highlighter-icon'
+import { MenuIcon } from '../components/tiptap-icons/menu-icon'
+import { useIsMobile } from '../hooks/use-mobile'
 import '../styles/fullscreen-editor.scss'
 import { normalizeFullscreenPaste } from '../utils/pasteFullscreen'
 
@@ -37,6 +39,7 @@ const FALLBACK_DOC: JSONContent = {
 }
 
 export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave }: FullscreenStackEditorProps) {
+  const isMobile = useIsMobile(480)
   const { doc } = useMemo(() => blocksToDoc(blocks), [blocks])
   const extensions = useMemo(() => createEditorExtensions({
     placeholder: "Type '/' for commands",
@@ -120,60 +123,103 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
 
   if (!isOpen) return null
 
+  // Editing tools component (shared between desktop and mobile)
+  const EditingTools = () => (
+    <>
+      <ToolbarGroup>
+        <UndoRedoButton action="undo" />
+        <UndoRedoButton action="redo" />
+      </ToolbarGroup>
+      <ToolbarSeparator />
+      <ToolbarGroup>
+        <HeadingDropdownMenu levels={[1, 2, 3]} />
+        <ListDropdownMenu types={["bulletList", "orderedList", "taskList"]} />
+        <BlockquoteButton />
+      </ToolbarGroup>
+      <ToolbarSeparator />
+      <ToolbarGroup>
+        <MarkButton type="bold" />
+        <MarkButton type="italic" />
+        <MarkButton type="underline" />
+        <Button
+          type="button"
+          data-style="ghost"
+          aria-label="Highlight"
+          tooltip="Highlight"
+          onClick={() => editor?.chain().focus().toggleHighlight().run()}
+        >
+          <HighlighterIcon className="tiptap-button-icon" />
+        </Button>
+        <LinkPopover />
+      </ToolbarGroup>
+      <ToolbarSeparator />
+      <ToolbarGroup>
+        <TextAlignButton align="left" />
+        <TextAlignButton align="center" />
+        <TextAlignButton align="right" />
+        <TextAlignButton align="justify" />
+      </ToolbarGroup>
+    </>
+  )
+
+  // Action buttons (Cancel/Save)
+  const ActionButtons = () => (
+    <ToolbarGroup>
+      {onCancel && (
+        <Button type="button" data-style="ghost" aria-label="Cancel editing" onClick={onCancel}>
+          Cancel
+        </Button>
+      )}
+      <Button type="button" aria-label="Save changes" onClick={handleSave}>
+        Save
+      </Button>
+    </ToolbarGroup>
+  )
+
   return (
     <div className="tt-shell">
       <EditorContext.Provider value={{ editor }}>
-        <Toolbar variant="fixed" className="tt-toolbar" aria-label="Fullscreen editor toolbar">
-          <Spacer />
-          <ToolbarGroup>
-            <UndoRedoButton action="undo" />
-            <UndoRedoButton action="redo" />
-          </ToolbarGroup>
-          <ToolbarSeparator />
-          <ToolbarGroup>
-            <HeadingDropdownMenu levels={[1, 2, 3]} />
-            <ListDropdownMenu types={["bulletList", "orderedList", "taskList"]} />
-            <BlockquoteButton />
-          </ToolbarGroup>
-          <ToolbarSeparator />
-          <ToolbarGroup>
-            <MarkButton type="bold" />
-            <MarkButton type="italic" />
-            <MarkButton type="underline" />
-            <Button
-              type="button"
-              data-style="ghost"
-              aria-label="Highlight"
-              tooltip="Highlight"
-              onClick={() => editor?.chain().focus().toggleHighlight().run()}
-            >
-              <HighlighterIcon className="tiptap-button-icon" />
-            </Button>
-            <LinkPopover />
-          </ToolbarGroup>
-          <ToolbarSeparator />
-          <ToolbarGroup>
-            <TextAlignButton align="left" />
-            <TextAlignButton align="center" />
-            <TextAlignButton align="right" />
-            <TextAlignButton align="justify" />
-          </ToolbarGroup>
-          <Spacer />
-          <ToolbarGroup>
-            {onCancel && (
-              <Button type="button" data-style="ghost" aria-label="Cancel editing" onClick={onCancel}>
-                Cancel
-              </Button>
-            )}
-            <Button type="button" aria-label="Save changes" onClick={handleSave}>
-              Save
-            </Button>
-          </ToolbarGroup>
-        </Toolbar>
+        {isMobile ? (
+          // Mobile layout: Top bar (Menu + Actions) + Bottom bar (Editing tools)
+          <>
+            <Toolbar variant="fixed" className="tt-toolbar tt-toolbar-top" aria-label="Fullscreen editor top toolbar" data-toolbar-position="top">
+              <ToolbarGroup>
+                <Button type="button" data-style="ghost" aria-label="Menu">
+                  <MenuIcon className="tiptap-button-icon" />
+                </Button>
+              </ToolbarGroup>
+              <Spacer />
+              <ActionButtons />
+            </Toolbar>
 
-        <div className="tt-content">
-          <EditorContent editor={editor!} className="tiptap" />
-        </div>
+            <div className="tt-content">
+              <EditorContent editor={editor!} className="tiptap" />
+            </div>
+
+            <Toolbar variant="fixed" className="tt-toolbar tt-toolbar-bottom" aria-label="Fullscreen editor editing toolbar" data-toolbar-position="bottom">
+              <EditingTools />
+            </Toolbar>
+          </>
+        ) : (
+          // Desktop layout: Single top bar (Menu + Editing tools + Actions)
+          <>
+            <Toolbar variant="fixed" className="tt-toolbar" aria-label="Fullscreen editor toolbar">
+              <ToolbarGroup>
+                <Button type="button" data-style="ghost" aria-label="Menu">
+                  <MenuIcon className="tiptap-button-icon" />
+                </Button>
+              </ToolbarGroup>
+              <ToolbarSeparator />
+              <EditingTools />
+              <Spacer />
+              <ActionButtons />
+            </Toolbar>
+
+            <div className="tt-content">
+              <EditorContent editor={editor!} className="tiptap" />
+            </div>
+          </>
+        )}
       </EditorContext.Provider>
     </div>
   )

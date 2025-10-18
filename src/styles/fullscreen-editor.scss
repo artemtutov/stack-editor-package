@@ -13,7 +13,6 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .tt-shell .tt-content {
@@ -44,7 +43,24 @@
 }
 
 @media (max-width: 480px) {
+  .tt-shell .tt-toolbar-top {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+  }
+
+  .tt-shell .tt-toolbar-bottom {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+  }
+
   .tt-shell .tt-content {
+    padding-top: var(--tt-toolbar-height);
     padding-bottom: calc(var(--tt-toolbar-height) + env(safe-area-inset-bottom, 0px));
   }
 

@@ -50,20 +50,40 @@
     }
 
     @media (max-width: 480px) {
-      position: fixed;
-      top: auto;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: calc(var(--tt-toolbar-height) + var(--tt-safe-area-bottom));
-      border-top: 1px solid var(--tt-toolbar-border-color);
-      border-bottom: none;
-      padding: 0 0.5rem var(--tt-safe-area-bottom);
       flex-wrap: nowrap;
       justify-content: flex-start;
 
       .tiptap-toolbar-group {
         flex: 0 0 auto;
+      }
+
+      // Top toolbar on mobile (menu + actions)
+      &[data-toolbar-position="top"] {
+        position: fixed;
+        top: 0;
+        bottom: auto;
+        left: 0;
+        right: 0;
+        height: var(--tt-toolbar-height);
+        border-bottom: 1px solid var(--tt-toolbar-border-color);
+        border-top: none;
+        padding: 0 0.5rem;
+        overflow-x: hidden; // No scroll for top bar
+        justify-content: space-between; // Menu left, actions right
+      }
+
+      // Bottom toolbar on mobile (editing tools)
+      &[data-toolbar-position="bottom"] {
+        position: fixed;
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: calc(var(--tt-toolbar-height) + var(--tt-safe-area-bottom));
+        border-top: 1px solid var(--tt-toolbar-border-color);
+        border-bottom: none;
+        padding: 0 0.5rem var(--tt-safe-area-bottom);
+        overflow-x: auto; // Horizontal scroll for editing tools
       }
     }
   }

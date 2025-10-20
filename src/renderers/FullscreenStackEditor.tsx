@@ -9,14 +9,16 @@ import { Toolbar, ToolbarGroup, ToolbarSeparator } from '../components/tiptap-ui
 import { Spacer } from '../components/tiptap-ui-primitive/spacer'
 import { Button } from '../components/tiptap-ui-primitive/button'
 import { UndoRedoButton } from '../components/tiptap-ui/undo-redo-button'
-import { HeadingDropdownMenu } from '../components/tiptap-ui/heading-dropdown-menu'
-import { ListDropdownMenu } from '../components/tiptap-ui/list-dropdown-menu'
+import { HeadingButton } from '../components/tiptap-ui/heading-button'
+import { ListButton } from '../components/tiptap-ui/list-button'
 import { BlockquoteButton } from '../components/tiptap-ui/blockquote-button'
+import { CodeBlockButton } from '../components/tiptap-ui/code-block-button'
 import { MarkButton } from '../components/tiptap-ui/mark-button'
 import { TextAlignButton } from '../components/tiptap-ui/text-align-button'
 import { LinkPopover } from '../components/tiptap-ui/link-popover'
-import { HighlighterIcon } from '../components/tiptap-icons/highlighter-icon'
+import { ColorHighlightButton } from '../components/tiptap-ui/color-highlight-button'
 import { MenuIcon } from '../components/tiptap-icons/menu-icon'
+import { MinusIcon } from '../components/tiptap-icons/minus-icon'
 import { useIsMobile } from '../hooks/use-mobile'
 import '../styles/fullscreen-editor.scss'
 import { normalizeFullscreenPaste } from '../utils/pasteFullscreen'
@@ -123,7 +125,7 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
 
   if (!isOpen) return null
 
-  // Editing tools component (shared between desktop and mobile)
+  // Editing tools component (shared between desktop and mobile) - matches TextNode order
   const EditingTools = () => (
     <>
       <ToolbarGroup>
@@ -132,25 +134,38 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
       </ToolbarGroup>
       <ToolbarSeparator />
       <ToolbarGroup>
-        <HeadingDropdownMenu levels={[1, 2, 3]} />
-        <ListDropdownMenu types={["bulletList", "orderedList", "taskList"]} />
-        <BlockquoteButton />
+        <HeadingButton level={1} />
+        <HeadingButton level={2} />
+        <HeadingButton level={3} />
+      </ToolbarGroup>
+      <ToolbarSeparator />
+      <ToolbarGroup>
+        <ListButton type="bulletList" />
+        <ListButton type="orderedList" />
+        <ListButton type="taskList" />
       </ToolbarGroup>
       <ToolbarSeparator />
       <ToolbarGroup>
         <MarkButton type="bold" />
         <MarkButton type="italic" />
         <MarkButton type="underline" />
+      </ToolbarGroup>
+      <ToolbarSeparator />
+      <ToolbarGroup>
+        <MarkButton type="code" />
+        <CodeBlockButton />
+        <ColorHighlightButton />
+        <LinkPopover />
+        <BlockquoteButton />
         <Button
           type="button"
           data-style="ghost"
-          aria-label="Highlight"
-          tooltip="Highlight"
-          onClick={() => editor?.chain().focus().toggleHighlight().run()}
+          aria-label="Horizontal Rule"
+          tooltip="Horizontal Rule"
+          onClick={() => editor?.chain().focus().setHorizontalRule().run()}
         >
-          <HighlighterIcon className="tiptap-button-icon" />
+          <MinusIcon className="tiptap-button-icon" />
         </Button>
-        <LinkPopover />
       </ToolbarGroup>
       <ToolbarSeparator />
       <ToolbarGroup>
@@ -201,7 +216,7 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
             </Toolbar>
           </>
         ) : (
-          // Desktop layout: Single top bar (Menu + Editing tools + Actions)
+          // Desktop layout: Three-part top bar (Menu + Centered editing tools + Done)
           <>
             <Toolbar variant="fixed" className="tt-toolbar" aria-label="Fullscreen editor toolbar">
               <ToolbarGroup>
@@ -209,10 +224,14 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
                   <MenuIcon className="tiptap-button-icon" />
                 </Button>
               </ToolbarGroup>
-              <ToolbarSeparator />
-              <EditingTools />
-              <Spacer />
-              <ActionButtons />
+              <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+                <EditingTools />
+              </div>
+              <ToolbarGroup>
+                <Button type="button" aria-label="Save changes" onClick={handleSave}>
+                  Done
+                </Button>
+              </ToolbarGroup>
             </Toolbar>
 
             <div className="tt-content">
@@ -223,29 +242,6 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
       </EditorContext.Provider>
     </div>
   )
-}
-
-function buttonStyle(primary: boolean): React.CSSProperties {
-  if (primary) {
-    return {
-      border: '1px solid #2563eb',
-      background: '#2563eb',
-      color: '#fff',
-      padding: '6px 14px',
-      borderRadius: '6px',
-      fontSize: '14px',
-      cursor: 'pointer',
-    }
-  }
-  return {
-    border: '1px solid #d1d5db',
-    background: 'white',
-    color: '#111827',
-    padding: '6px 14px',
-    borderRadius: '6px',
-    fontSize: '14px',
-    cursor: 'pointer',
-  }
 }
 
 export function blocksToDoc(blocks: Array<{ id: string; content: RichTextPayload }>): { doc: JSONContent } {

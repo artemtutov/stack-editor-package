@@ -21,6 +21,7 @@ export type UseStackDragResult = {
   dropIndicator: {
     show: boolean
     position: { x: number; y: number; width: number }
+    canvasPosition: { x: number; y: number }
     targetStackId: string | null
     insertionIndex: number
   }
@@ -50,6 +51,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
   const [dropIndicator, setDropIndicator] = useState({
     show: false,
     position: { x: 0, y: 0, width: 0 },
+    canvasPosition: { x: 0, y: 0 },
     targetStackId: null as null | string,
     insertionIndex: -1,
   })
@@ -84,7 +86,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
     ) => {
       // Skip container drag - ReactFlow handles it
       if ((node as any).type === 'stackContainer') {
-        setDropIndicator({ show: false, position: { x: 0, y: 0, width: 0 }, targetStackId: null, insertionIndex: -1 })
+        setDropIndicator({ show: false, position: { x: 0, y: 0, width: 0 }, canvasPosition: { x: 0, y: 0 }, targetStackId: null, insertionIndex: -1 })
         return
       }
 
@@ -96,7 +98,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
 
           isDraggingStackRef.current = true
           const moved = applyGroupDrag(nds, node, currentNode, stackId)
-          setDropIndicator({ show: false, position: { x: 0, y: 0, width: 0 }, targetStackId: null, insertionIndex: -1 })
+          setDropIndicator({ show: false, position: { x: 0, y: 0, width: 0 }, canvasPosition: { x: 0, y: 0 }, targetStackId: null, insertionIndex: -1 })
           return moved
         })
         return
@@ -115,6 +117,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
       setDropIndicator({
         show: dropInfo.show,
         position: dropInfo.position,
+        canvasPosition: dropInfo.canvasPosition,
         targetStackId: dropInfo.targetStackId,
         insertionIndex: dropInfo.insertionIndex,
       })
@@ -136,7 +139,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
         return
       }
 
-      setDropIndicator({ show: false, position: { x: 0, y: 0, width: 0 }, targetStackId: null, insertionIndex: -1 })
+      setDropIndicator({ show: false, position: { x: 0, y: 0, width: 0 }, canvasPosition: { x: 0, y: 0 }, targetStackId: null, insertionIndex: -1 })
 
       requestAnimationFrame(() => {
         setNodes((nds) => {
@@ -184,7 +187,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
               updatedNodes = calculateStackLayout(newStackId, updatedNodes, gap, headerHeight)
 
               isDraggingStackRef.current = false
-              dropInfoRef.current = { show: false, targetStackId: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 }, targetType: null }
+              dropInfoRef.current = { show: false, targetStackId: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 }, canvasPosition: { x: 0, y: 0 }, targetType: null }
 
               const final = updateBottomFlags(updatedNodes)
               return syncContainers(final)
@@ -221,7 +224,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
           }
 
           isDraggingStackRef.current = false
-          dropInfoRef.current = { show: false, targetStackId: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 }, targetType: null }
+          dropInfoRef.current = { show: false, targetStackId: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 }, canvasPosition: { x: 0, y: 0 }, targetType: null }
 
           const final = updateBottomFlags(updatedNodes)
           return syncContainers(final)

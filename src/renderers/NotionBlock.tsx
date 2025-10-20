@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useReactFlow } from '@xyflow/react'
 import type { BlockData, RichTextPayload } from '../types'
 import TipTapEditor from './TipTapEditor'
+import { getAbsolutePosition } from '../logic/dragAndDrop'
 
 type Props = {
   id: string
@@ -12,6 +14,10 @@ type Props = {
 function NotionBlock({ data, id, selected, parentId }: Props) {
   const blockRef = useRef<HTMLDivElement | null>(null)
   const [isFocused, setIsFocused] = useState(false)
+  const { getNode, getNodes } = useReactFlow()
+  const node = getNode(id)
+  const allNodes = getNodes()
+  const absolutePos = node ? getAbsolutePosition(node, allNodes) : { x: 0, y: 0 }
 
   // Track height changes and notify parent (callback or DOM event)
   useEffect(() => {
@@ -136,7 +142,25 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
   }, [data, dispatchEvent, id])
 
   return (
-    <div className="notion-block-wrapper" style={{ width: '100%' }}>
+    <div className="notion-block-wrapper" style={{ width: '100%', position: 'relative' }}>
+      {/* Debug coordinates - show absolute position */}
+      {selected && (
+        <div style={{
+          position: 'absolute',
+          top: '-18px',
+          right: '0',
+          fontSize: '9px',
+          fontWeight: 'bold',
+          color: '#666',
+          backgroundColor: 'yellow',
+          padding: '1px 3px',
+          borderRadius: '2px',
+          zIndex: 100,
+          whiteSpace: 'nowrap',
+        }}>
+          abs: x: {Math.round(absolutePos.x)}, y: {Math.round(absolutePos.y)}
+        </div>
+      )}
       <div
         ref={blockRef}
         className={`notion-block ${isFocused ? 'focused' : ''} ${selected ? 'selected' : ''} ${

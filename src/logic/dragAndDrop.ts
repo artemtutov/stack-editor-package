@@ -7,6 +7,7 @@ export type DropInfo = {
   targetNodeId?: string | null
   insertionIndex: number
   position: { x: number; y: number; width: number }
+  canvasPosition: { x: number; y: number }
 }
 
 export type ContainerDragState = {
@@ -147,10 +148,11 @@ export function calculateDropIndicator(
         targetNodeId: bestSoloBlock.id as string,
         insertionIndex: -1,
         position: { x: screenX, y: screenY, width: screenW },
+        canvasPosition: { x: soloAbsPos.x, y: soloAbsPos.y },
       }
     }
 
-    return { show: false, targetStackId: null, targetType: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 } }
+    return { show: false, targetStackId: null, targetType: null, insertionIndex: -1, position: { x: 0, y: 0, width: 0 }, canvasPosition: { x: 0, y: 0 } }
   }
 
   // Get blocks in target stack
@@ -198,6 +200,7 @@ export function calculateDropIndicator(
     targetType: 'container',
     insertionIndex,
     position: { x: screenX, y: screenY, width: screenW },
+    canvasPosition: { x: containerAbsX, y: indicatorAbsY },
   }
 }
 

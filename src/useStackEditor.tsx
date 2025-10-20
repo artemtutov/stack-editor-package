@@ -827,7 +827,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
           onClose={() => setSlashMenu(null)}
         />
       )}
-      <DropIndicator show={drag.dropIndicator.show} position={drag.dropIndicator.position} />
+      <DropIndicator show={drag.dropIndicator.show} position={drag.dropIndicator.position} canvasPosition={drag.dropIndicator.canvasPosition} />
     </>
   )
 

@@ -6,7 +6,7 @@ export default function DropIndicator({ position, show }: Props) {
     <div
       className="drop-indicator"
       style={{
-        position: 'fixed',
+        position: 'absolute',
         left: `${position.x}px`,
         top: `${position.y}px`,
         width: `${position.width}px`,

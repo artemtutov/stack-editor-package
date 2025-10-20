@@ -135,9 +135,9 @@ export function calculateDropIndicator(
 
     if (bestSoloBlock) {
       const soloAbsPos = getAbsolutePosition(bestSoloBlock as Node, allNodes)
-      const { x: vx, y: vy, zoom } = viewport
-      const screenX = vx + soloAbsPos.x * zoom
-      const screenY = vy + soloAbsPos.y * zoom
+      const { zoom } = viewport
+      const screenX = soloAbsPos.x * zoom
+      const screenY = soloAbsPos.y * zoom
       const screenW = blockWidth * zoom
 
       return {
@@ -186,9 +186,9 @@ export function calculateDropIndicator(
 
   // Convert to screen coordinates for indicator
   const containerAbsX = targetContainer.position.x
-  const { x: vx, y: vy, zoom } = viewport
-  const screenX = vx + containerAbsX * zoom
-  const screenY = vy + indicatorAbsY * zoom
+  const { zoom } = viewport
+  const screenX = containerAbsX * zoom
+  const screenY = indicatorAbsY * zoom
   const containerWidth = (targetContainer.data as any)?.width || blockWidth
   const screenW = containerWidth * zoom
 

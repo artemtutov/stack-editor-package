@@ -30,18 +30,18 @@
   width: 18px;
   background: transparent;
   color: rgba(55, 53, 47, 0.35);
-  transition: all 100ms ease;
+  transition: opacity 150ms ease;
   padding: 0;
 }
 
-.drag-handle:hover {
+/* Removed second hover effect - no background change on button hover */
+/* .drag-handle:hover {
   background-color: rgba(55, 53, 47, 0.08);
   color: rgba(55, 53, 47, 0.6);
-}
+} */
 
 .drag-handle:active {
   cursor: grabbing;
-  background-color: rgba(55, 53, 47, 0.12);
 }
 
 /* Hide drag handle by default on desktop, show on hover */

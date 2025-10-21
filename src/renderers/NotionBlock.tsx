@@ -182,9 +182,14 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
           disabled={isFocused}
           style={{
             position: 'absolute',
-            left: '4px',
+            left: '0px',
             top: '50%',
             transform: 'translateY(-50%)',
+            width: '32px',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             zIndex: 10,
           }}
         >

@@ -31,7 +31,8 @@ export type UseStackDragResult = {
     node: Node,
     nodesRef: React.MutableRefObject<Node[]>,
     setNodes: (updater: (nodes: Node[]) => Node[]) => void,
-    flowToScreenPosition: (position: { x: number; y: number }) => { x: number; y: number }
+    flowToScreenPosition: (position: { x: number; y: number }) => { x: number; y: number },
+    zoom: number
   ) => void
   onNodeDragStop: (
     evt: React.MouseEvent,
@@ -82,7 +83,8 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
       node: Node,
       nodesRef: React.MutableRefObject<Node[]>,
       setNodes: (updater: (nodes: Node[]) => Node[]) => void,
-      flowToScreenPosition: (position: { x: number; y: number }) => { x: number; y: number }
+      flowToScreenPosition: (position: { x: number; y: number }) => { x: number; y: number },
+      zoom: number
     ) => {
       // Skip container drag - ReactFlow handles it
       if ((node as any).type === 'stackContainer') {
@@ -109,6 +111,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
         nodesRef.current,
         dragStartStackIdRef.current,
         flowToScreenPosition,
+        zoom,
         xTolerance,
         blockWidth,
         headerHeight

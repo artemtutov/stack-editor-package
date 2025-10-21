@@ -866,7 +866,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     nodeTypes,
     onNodesChange,
     onNodeDragStart: (evt, node) => drag.onNodeDragStart(evt, node, nodesRef),
-    onNodeDrag: (evt, node) => drag.onNodeDrag(evt, node, nodesRef, setNodes, reactFlowInstance.flowToScreenPosition),
+    onNodeDrag: (evt, node) => drag.onNodeDrag(evt, node, nodesRef, setNodes, reactFlowInstance.flowToScreenPosition, reactFlowInstance.getViewport().zoom),
     onNodeDragStop: (evt, node) => drag.onNodeDragStop(evt, node, setNodes, updateBottomNodeFlags, syncContainersWithCallbacks),
     onMove,
     focus,

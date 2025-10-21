@@ -65,6 +65,7 @@ export function calculateDropIndicator(
   allNodes: Node[],
   dragStartStackId: string | null,
   flowToScreenPosition: (position: { x: number; y: number }) => { x: number; y: number },
+  zoom: number,
   xTolerance: number,
   blockWidth: number,
   headerHeight: number
@@ -138,7 +139,8 @@ export function calculateDropIndicator(
     if (bestSoloBlock) {
       const soloAbsPos = getAbsolutePosition(bestSoloBlock as Node, allNodes)
       const screenPos = flowToScreenPosition({ x: soloAbsPos.x, y: soloAbsPos.y })
-      const screenW = (bestSoloBlock as any).measured?.width || blockWidth
+      const canvasWidth = (bestSoloBlock as any).measured?.width || blockWidth
+      const screenW = canvasWidth * zoom
 
       return {
         show: true,
@@ -194,13 +196,14 @@ export function calculateDropIndicator(
   const containerAbsX = targetContainer.position.x
   const screenPos = flowToScreenPosition({ x: containerAbsX, y: indicatorAbsY })
   const containerWidth = (targetContainer.data as any)?.width || blockWidth
+  const screenW = containerWidth * zoom
 
   return {
     show: true,
     targetStackId,
     targetType: 'container',
     insertionIndex,
-    position: { x: screenPos.x, y: screenPos.y, width: containerWidth },
+    position: { x: screenPos.x, y: screenPos.y, width: screenW },
     canvasPosition: { x: containerAbsX, y: indicatorAbsY },
   }
 }

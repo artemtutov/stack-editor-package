@@ -8,6 +8,7 @@ export default function DropIndicator({ position, canvasPosition, show }: Props)
   if (!show) return null
   return (
     <div
+      className="drop-indicator"
       style={{
         position: 'fixed',
         left: `${position.x}px`,
@@ -17,7 +18,6 @@ export default function DropIndicator({ position, canvasPosition, show }: Props)
         zIndex: 9999,
       }}
     >
-      <div className="drop-indicator" />
       <div style={{
         position: 'absolute',
         top: '-20px',

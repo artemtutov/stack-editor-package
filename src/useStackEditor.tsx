@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNodesState, applyNodeChanges, useStoreApi, type Node, type NodeTypes, type NodeChange } from '@xyflow/react'
+import { useNodesState, applyNodeChanges, useStoreApi, useReactFlow, type Node, type NodeTypes, type NodeChange } from '@xyflow/react'
 import type { Editor } from '@tiptap/core'
 import NotionBlock from './renderers/NotionBlock'
 import StackContainer from './renderers/StackContainer'
@@ -98,8 +98,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   const [nodes, setNodesBase, onNodesChangeBase] = useNodesState<Node>([])
   const nodesRef = useRef<Node[]>([])
   const nodeRefsMap = useRef<NodeRefsMap>({})
-  const viewportRef = useRef({ x: 0, y: 0, zoom: 1 })
   const storeApi = useStoreApi()
+  const reactFlowInstance = useReactFlow()
 
   // Active resize tracking
   const activeResizeContainerRef = useRef<string | null>(null)
@@ -279,9 +279,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     headerHeight: opts.headerHeight,
   })
 
-  // Viewport tracking
+  // Viewport tracking (kept for compatibility, but not used for drop indicator)
   const onMove = useCallback((_evt: any, viewport: { x: number; y: number; zoom: number }) => {
-    viewportRef.current = viewport
+    // Viewport is now accessed via reactFlowInstance
   }, [])
 
   // Public API
@@ -866,7 +866,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     nodeTypes,
     onNodesChange,
     onNodeDragStart: (evt, node) => drag.onNodeDragStart(evt, node, nodesRef),
-    onNodeDrag: (evt, node) => drag.onNodeDrag(evt, node, nodesRef, setNodes, viewportRef),
+    onNodeDrag: (evt, node) => drag.onNodeDrag(evt, node, nodesRef, setNodes, reactFlowInstance.flowToScreenPosition),
     onNodeDragStop: (evt, node) => drag.onNodeDragStop(evt, node, setNodes, updateBottomNodeFlags, syncContainersWithCallbacks),
     onMove,
     focus,

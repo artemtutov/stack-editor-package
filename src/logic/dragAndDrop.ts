@@ -64,9 +64,10 @@ export function calculateDropIndicator(
   draggedNode: Node,
   allNodes: Node[],
   dragStartStackId: string | null,
-  viewport: { x: number; y: number; zoom: number },
+  flowToScreenPosition: (position: { x: number; y: number }) => { x: number; y: number },
   xTolerance: number,
-  blockWidth: number
+  blockWidth: number,
+  headerHeight: number
 ): DropInfo {
   const draggedNodeId = draggedNode.id
   const draggedAbsPos = getAbsolutePosition(draggedNode, allNodes)
@@ -136,10 +137,8 @@ export function calculateDropIndicator(
 
     if (bestSoloBlock) {
       const soloAbsPos = getAbsolutePosition(bestSoloBlock as Node, allNodes)
-      const { x: vx, y: vy, zoom } = viewport
-      const screenX = vx + soloAbsPos.x * zoom
-      const screenY = vy + soloAbsPos.y * zoom
-      const screenW = blockWidth * zoom
+      const screenPos = flowToScreenPosition({ x: soloAbsPos.x, y: soloAbsPos.y })
+      const screenW = (bestSoloBlock as any).measured?.width || blockWidth
 
       return {
         show: true,
@@ -147,7 +146,7 @@ export function calculateDropIndicator(
         targetType: 'solo' as const,
         targetNodeId: bestSoloBlock.id as string,
         insertionIndex: -1,
-        position: { x: screenX, y: screenY, width: screenW },
+        position: { x: screenPos.x, y: screenPos.y, width: screenW },
         canvasPosition: { x: soloAbsPos.x, y: soloAbsPos.y },
       }
     }
@@ -173,7 +172,12 @@ export function calculateDropIndicator(
 
       if (pointerY < blockMidY) {
         insertionIndex = i
-        indicatorAbsY = blockAbsPos.y
+        // When inserting at first position, use container position + header offset
+        if (i === 0) {
+          indicatorAbsY = targetContainer.position.y + headerHeight + 4
+        } else {
+          indicatorAbsY = blockAbsPos.y
+        }
         break
       }
       if (i === stackBlocks.length - 1) {
@@ -183,23 +187,20 @@ export function calculateDropIndicator(
     }
   } else {
     insertionIndex = 0
-    indicatorAbsY = pointerY
+    indicatorAbsY = targetContainer.position.y + headerHeight + 4
   }
 
   // Convert to screen coordinates for indicator
   const containerAbsX = targetContainer.position.x
-  const { x: vx, y: vy, zoom } = viewport
-  const screenX = vx + containerAbsX * zoom
-  const screenY = vy + indicatorAbsY * zoom
+  const screenPos = flowToScreenPosition({ x: containerAbsX, y: indicatorAbsY })
   const containerWidth = (targetContainer.data as any)?.width || blockWidth
-  const screenW = containerWidth * zoom
 
   return {
     show: true,
     targetStackId,
     targetType: 'container',
     insertionIndex,
-    position: { x: screenX, y: screenY, width: screenW },
+    position: { x: screenPos.x, y: screenPos.y, width: containerWidth },
     canvasPosition: { x: containerAbsX, y: indicatorAbsY },
   }
 }

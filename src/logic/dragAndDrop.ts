@@ -148,7 +148,11 @@ export function calculateDropIndicator(
         targetType: 'solo' as const,
         targetNodeId: bestSoloBlock.id as string,
         insertionIndex: -1,
-        position: { x: screenPos.x, y: screenPos.y, width: screenW },
+        position: {
+          x: Math.round(screenPos.x),
+          y: Math.round(screenPos.y),
+          width: Math.round(screenW)
+        },
         canvasPosition: { x: soloAbsPos.x, y: soloAbsPos.y },
       }
     }
@@ -193,17 +197,25 @@ export function calculateDropIndicator(
   }
 
   // Convert to screen coordinates for indicator
+  // Account for 4px padding on each side (blocks are at x: 4 inside container)
   const containerAbsX = targetContainer.position.x
-  const screenPos = flowToScreenPosition({ x: containerAbsX, y: indicatorAbsY })
-  const containerWidth = (targetContainer.data as any)?.width || blockWidth
-  const screenW = containerWidth * zoom
+  const containerWidth = (targetContainer as any).measured?.width || (targetContainer.data as any)?.width || blockWidth
+  const contentX = containerAbsX + 4
+  const contentWidth = containerWidth - 8
+
+  const screenPos = flowToScreenPosition({ x: contentX, y: indicatorAbsY })
+  const screenW = contentWidth * zoom
 
   return {
     show: true,
     targetStackId,
     targetType: 'container',
     insertionIndex,
-    position: { x: screenPos.x, y: screenPos.y, width: screenW },
+    position: {
+      x: Math.round(screenPos.x),
+      y: Math.round(screenPos.y),
+      width: Math.round(screenW)
+    },
     canvasPosition: { x: containerAbsX, y: indicatorAbsY },
   }
 }

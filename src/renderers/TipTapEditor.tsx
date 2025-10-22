@@ -33,6 +33,7 @@ export type TipTapEditorProps = {
   placeholder?: string
   autoFocus?: boolean
   onContentUpdate: (payload: RichTextPayload) => void
+  onContentCommit?: () => void  // Called when editing completes (e.g., on blur)
   createBlockBelow: (initialContent?: RichTextPayload) => void
   createMultipleBlocksBelow?: (payloads: RichTextPayload[]) => void
   mergeBlockUp: (currentContent?: RichTextPayload) => void
@@ -52,6 +53,7 @@ export default function TipTapEditor({
   placeholder = "Type '/' for commands",
   autoFocus = false,
   onContentUpdate,
+  onContentCommit,
   createBlockBelow,
   createMultipleBlocksBelow,
   mergeBlockUp,
@@ -206,7 +208,10 @@ export default function TipTapEditor({
   useEffect(() => {
     if (!editor) return
     const handleFocus = () => onFocusChange?.(true)
-    const handleBlur = () => onFocusChange?.(false)
+    const handleBlur = () => {
+      onFocusChange?.(false)
+      onContentCommit?.()  // Emit commit event when editing completes
+    }
 
     editor.on('focus', handleFocus)
     editor.on('blur', handleBlur)
@@ -215,7 +220,7 @@ export default function TipTapEditor({
       editor.off('focus', handleFocus)
       editor.off('blur', handleBlur)
     }
-  }, [editor, onFocusChange])
+  }, [editor, onFocusChange, onContentCommit])
 
   useEffect(() => {
     if (!editor) return

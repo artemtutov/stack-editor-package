@@ -150,6 +150,20 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     }
   }, [])
 
+  // Helper to emit change events to listeners (moved early for callback dependencies)
+  const emitChange = useCallback((event: ChangeEvent) => {
+    // Skip emitting during transactions or restoration
+    if (isInTransactionRef.current || isRestoringRef.current) return
+
+    changeListenersRef.current.forEach(listener => {
+      try {
+        listener(event)
+      } catch (err) {
+        console.error('📦 Stack Editor: Error in change listener:', err)
+      }
+    })
+  }, [])
+
   // Layout management
   const { applyLayout, syncContainers } = useStackLayout({
     blockWidth: opts.blockWidth,
@@ -435,6 +449,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                   cachedHTML: sanitizeAndSave(payload.html),
                   schemaVersion: CURRENT_SCHEMA_VERSION,
                 } } : ni))),
+          onContentCommit: () => {
+            emitChange({ type: 'content.commit', blockId: id })
+          },
           onAdd: (initialContent?: RichTextPayload) => blockOps.addBelow(id, initialContent),
           onAddMultiple: (payloads: RichTextPayload[]) => blockOps.addMultipleBelow(id, payloads),
           onHeightChange: handleHeightChange,
@@ -451,7 +468,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
       return syncContainers([...updated, wired]) as Node[]
     })
-  }, [blockOps, handleHeightChange, handleSlashCommand, syncContainers])
+  }, [blockOps, handleHeightChange, handleSlashCommand, syncContainers, emitChange])
 
   // Load blocks imperatively (replaces all blocks, used for canvas load)
   const loadBlocks = useCallback((blocks: InitialBlock[]) => {
@@ -543,6 +560,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                   cachedHTML: sanitizeAndSave(payload.html),
                   schemaVersion: CURRENT_SCHEMA_VERSION,
                 } } : ni))),
+          onContentCommit: () => {
+            emitChange({ type: 'content.commit', blockId: n.id })
+          },
           onAdd: (initialContent?: RichTextPayload) => blockOps.addBelow(n.id, initialContent),
           onAddMultiple: (payloads: RichTextPayload[]) => blockOps.addMultipleBelow(n.id, payloads),
           onHeightChange: handleHeightChange,
@@ -561,7 +581,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     // 5. Apply layout - syncContainers will see existing containers and preserve their positions
     const laidOut = syncContainers(wired) as Node[]
     setNodes(laidOut)
-  }, [blockOps, handleHeightChange, handleSlashCommand, syncContainers, opts.blockWidth])
+  }, [blockOps, handleHeightChange, handleSlashCommand, syncContainers, opts.blockWidth, emitChange])
 
   // Resize callbacks
   const onContainerResizeStart = useCallback(
@@ -801,6 +821,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                 cachedHTML: sanitizeAndSave(payload.html),
                 schemaVersion: CURRENT_SCHEMA_VERSION,
               } } : ni))),
+        onContentCommit: () => {
+          emitChange({ type: 'content.commit', blockId: n.id })
+        },
         onAdd: (initialContent?: RichTextPayload) => blockOps.addBelow(n.id, initialContent),
         onAddMultiple: (payloads: RichTextPayload[]) => blockOps.addMultipleBelow(n.id, payloads),
         onHeightChange: handleHeightChange,
@@ -830,7 +853,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
     setNodes(laidOut)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [emitChange])
 
   // Expand stack (open fullscreen modal for a stack)
   const expandStack = useCallback((stackId: string) => {
@@ -846,20 +869,6 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   }, [])
 
   // ===== History/Undo-Redo APIs =====
-
-  // Helper to emit change events to listeners
-  const emitChange = useCallback((event: ChangeEvent) => {
-    // Skip emitting during transactions or restoration
-    if (isInTransactionRef.current || isRestoringRef.current) return
-
-    changeListenersRef.current.forEach(listener => {
-      try {
-        listener(event)
-      } catch (err) {
-        console.error('📦 Stack Editor: Error in change listener:', err)
-      }
-    })
-  }, [])
 
   // Get snapshot of current state for undo/redo
   const getSnapshot = useCallback((): StackSnapshot => {

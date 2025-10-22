@@ -93,6 +93,13 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
     [data, dispatchEvent, id]
   )
 
+  const handleContentCommit = useCallback(() => {
+    if (data.onContentCommit) {
+      data.onContentCommit()
+    }
+    // No fallback event - this is hook-specific functionality
+  }, [data])
+
   const handleMergeUp = useCallback((currentContent?: RichTextPayload) => {
     if (data.onMergeUp) {
       data.onMergeUp(id, currentContent)
@@ -200,6 +207,7 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
           contentJson={data.contentJson}
           placeholder={data.placeholder}
           onContentUpdate={handleContentUpdate}
+          onContentCommit={handleContentCommit}
           createBlockBelow={handleAddBelow}
           createMultipleBlocksBelow={handleAddMultipleBelow}
           mergeBlockUp={handleMergeUp}

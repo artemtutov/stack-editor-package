@@ -70,6 +70,33 @@ export type StackEditorHookArgs = {
   options?: StackEditorOptions
 }
 
+// Snapshot version for future compatibility
+export const STACK_SNAPSHOT_VERSION = 1
+
+// Snapshot structure for undo/redo
+export type StackSnapshot = {
+  version: number
+  blocks: InitialBlock[]
+  timestamp: number
+}
+
+// Change event types for undo/redo coordination
+export type ChangeEventType =
+  | 'block.create'
+  | 'block.delete'
+  | 'block.move.end'
+  | 'content.commit'
+  | 'stack.expand'
+  | 'stack.collapse'
+
+export type ChangeEvent = {
+  type: ChangeEventType
+  blockId?: string
+  stackId?: string
+}
+
+export type ChangeListener = (event: ChangeEvent) => void
+
 export type StackEditorHookResult = {
   nodes: Node[]
   nodeTypes: NodeTypes
@@ -89,4 +116,13 @@ export type StackEditorHookResult = {
   expandStack: (stackId: string) => void
   // overlays to render alongside ReactFlow
   overlays: React.ReactNode
+  // History/undo-redo APIs
+  getSnapshot: () => StackSnapshot
+  applySnapshot: (snapshot: StackSnapshot, options?: { silent?: boolean }) => void
+  // Transaction APIs for grouping operations
+  beginTransaction: (name?: string) => void
+  commitTransaction: (name: string) => void
+  abortTransaction: () => void
+  // Change subscription for coordinating with host history
+  onChange: (listener: ChangeListener) => () => void
 }

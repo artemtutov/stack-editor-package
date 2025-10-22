@@ -11,7 +11,12 @@ export type {
   StackEditorValue,
   StackEditorHookArgs,
   StackEditorHookResult,
+  StackSnapshot,
+  ChangeEvent,
+  ChangeEventType,
+  ChangeListener,
 } from './types'
+export { STACK_SNAPSHOT_VERSION } from './types'
 
 // Export renderers for customization
 export { default as NotionBlock } from './renderers/NotionBlock'

@@ -13,7 +13,11 @@ import type {
   StackEditorOptions,
   RichTextPayload,
   SlashPayload,
+  StackSnapshot,
+  ChangeEvent,
+  ChangeListener,
 } from './types'
+import { STACK_SNAPSHOT_VERSION } from './types'
 import { useStackLayout } from './hooks/useStackLayout'
 import { useStackDrag } from './hooks/useStackDrag'
 import { useBlockOperations, type NodeRefsMap } from './hooks/useBlockOperations'
@@ -116,10 +120,35 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   // Slash menu state
   const [slashMenu, setSlashMenu] = useState<null | (SlashPayload & { position: { x: number; y: number } })>(null)
 
+  // History/undo-redo state
+  const isInTransactionRef = useRef(false)
+  const transactionNameRef = useRef<string | undefined>(undefined)
+  const changeListenersRef = useRef<Set<ChangeListener>>(new Set())
+  const isRestoringRef = useRef(false)
+
   // Update nodes ref
   useEffect(() => {
     nodesRef.current = nodes
   }, [nodes])
+
+  // Listen for history:restoring event to cancel in-flight work
+  useEffect(() => {
+    const handleHistoryRestoring = () => {
+      isRestoringRef.current = true
+      // Cancel any in-flight layout/async work here if needed
+      console.log('📦 Stack Editor: History restoring, pausing operations')
+
+      // Reset after a brief delay
+      setTimeout(() => {
+        isRestoringRef.current = false
+      }, 100)
+    }
+
+    window.addEventListener('history:restoring', handleHistoryRestoring)
+    return () => {
+      window.removeEventListener('history:restoring', handleHistoryRestoring)
+    }
+  }, [])
 
   // Layout management
   const { applyLayout, syncContainers } = useStackLayout({
@@ -816,6 +845,99 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     }
   }, [])
 
+  // ===== History/Undo-Redo APIs =====
+
+  // Helper to emit change events to listeners
+  const emitChange = useCallback((event: ChangeEvent) => {
+    // Skip emitting during transactions or restoration
+    if (isInTransactionRef.current || isRestoringRef.current) return
+
+    changeListenersRef.current.forEach(listener => {
+      try {
+        listener(event)
+      } catch (err) {
+        console.error('📦 Stack Editor: Error in change listener:', err)
+      }
+    })
+  }, [])
+
+  // Get snapshot of current state for undo/redo
+  const getSnapshot = useCallback((): StackSnapshot => {
+    return {
+      version: STACK_SNAPSHOT_VERSION,
+      blocks: getBlocks(),
+      timestamp: Date.now()
+    }
+  }, [getBlocks])
+
+  // Apply snapshot to restore state
+  const applySnapshot = useCallback((snapshot: StackSnapshot, options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false
+
+    console.log('📦 Stack Editor: Applying snapshot', {
+      version: snapshot.version,
+      blockCount: snapshot.blocks.length,
+      silent
+    })
+
+    // Validate version
+    if (snapshot.version !== STACK_SNAPSHOT_VERSION) {
+      console.warn(`📦 Stack Editor: Snapshot version mismatch. Expected ${STACK_SNAPSHOT_VERSION}, got ${snapshot.version}`)
+    }
+
+    // Set restoring flag to prevent emissions during load
+    const wasRestoring = isRestoringRef.current
+    if (silent) {
+      isRestoringRef.current = true
+    }
+
+    try {
+      // Use loadBlocks to restore state
+      loadBlocks(snapshot.blocks)
+    } finally {
+      if (silent) {
+        // Reset restoring flag after a brief delay to allow React to update
+        setTimeout(() => {
+          isRestoringRef.current = wasRestoring
+        }, 10)
+      }
+    }
+  }, [loadBlocks])
+
+  // Transaction methods
+  const beginTransaction = useCallback((name?: string) => {
+    console.log('📦 Stack Editor: Beginning transaction', name)
+    isInTransactionRef.current = true
+    transactionNameRef.current = name
+  }, [])
+
+  const commitTransaction = useCallback((name: string) => {
+    console.log('📦 Stack Editor: Committing transaction', name)
+    isInTransactionRef.current = false
+    transactionNameRef.current = undefined
+
+    // Emit a single commit event for the transaction
+    emitChange({
+      type: 'content.commit',
+    })
+  }, [emitChange])
+
+  const abortTransaction = useCallback(() => {
+    console.log('📦 Stack Editor: Aborting transaction')
+    isInTransactionRef.current = false
+    transactionNameRef.current = undefined
+  }, [])
+
+  // Subscribe to change events
+  const onChange = useCallback((listener: ChangeListener): (() => void) => {
+    changeListenersRef.current.add(listener)
+
+    // Return unsubscribe function
+    return () => {
+      changeListenersRef.current.delete(listener)
+    }
+  }, [])
+
   // Overlays
   const overlays = (
     <>
@@ -878,6 +1000,13 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     loadBlocks,
     expandStack,
     overlays,
+    // History/undo-redo APIs
+    getSnapshot,
+    applySnapshot,
+    beginTransaction,
+    commitTransaction,
+    abortTransaction,
+    onChange,
   }
 }
 

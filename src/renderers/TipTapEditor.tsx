@@ -68,6 +68,20 @@ export default function TipTapEditor({
 }: TipTapEditorProps) {
   const editorRef = useRef<Editor | null>(null)
   const lastKnownJsonRef = useRef<JSONContent>(contentJson)
+  const commitTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Listen for history:restoring to clear pending auto-commit timer
+  useEffect(() => {
+    const handleHistoryRestoring = () => {
+      if (commitTimeoutRef.current) {
+        clearTimeout(commitTimeoutRef.current)
+        commitTimeoutRef.current = null
+      }
+    }
+
+    window.addEventListener('history:restoring', handleHistoryRestoring)
+    return () => window.removeEventListener('history:restoring', handleHistoryRestoring)
+  }, [])
 
   const baseExtensions = useMemo(() => createEditorExtensions({
     placeholder,
@@ -103,6 +117,11 @@ export default function TipTapEditor({
     onDestroy: () => {
       editorRef.current = null
       decrementEditorCount()
+
+      // Clean up auto-commit timer
+      if (commitTimeoutRef.current) {
+        clearTimeout(commitTimeoutRef.current)
+      }
     },
     onUpdate: ({ editor }) => {
       const nextJson = ensureJsonContent(editor.getJSON())
@@ -110,6 +129,14 @@ export default function TipTapEditor({
       lastKnownJsonRef.current = nextJson
       const nextHtml = sanitizeAndSave(jsonToHtml(nextJson))
       onContentUpdate({ json: nextJson, html: nextHtml })
+
+      // Debounced auto-commit: create snapshot after 2 seconds of typing inactivity
+      if (commitTimeoutRef.current) {
+        clearTimeout(commitTimeoutRef.current)
+      }
+      commitTimeoutRef.current = setTimeout(() => {
+        onContentCommit?.()  // Emits content.commit event for granular undo
+      }, 2000)
     },
     editorProps: {
       attributes: {
@@ -210,7 +237,15 @@ export default function TipTapEditor({
     const handleFocus = () => onFocusChange?.(true)
     const handleBlur = () => {
       onFocusChange?.(false)
-      onContentCommit?.()  // Emit commit event when editing completes
+
+      // Clear pending auto-commit timer
+      if (commitTimeoutRef.current) {
+        clearTimeout(commitTimeoutRef.current)
+        commitTimeoutRef.current = null
+      }
+
+      // Immediate commit on blur
+      onContentCommit?.()
     }
 
     editor.on('focus', handleFocus)

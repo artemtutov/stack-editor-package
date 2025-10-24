@@ -99,10 +99,10 @@ function StackDemo() {
       id: 'test-group',
       type: 'group',
       position: groupPosition,  // Use state so it can update
-      width: 400,
+      width: 800,
       height: 300,
       style: {
-        width: 400,
+        width: 800,
         height: 300,
         backgroundColor: 'transparent',
       },

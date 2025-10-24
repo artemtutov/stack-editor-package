@@ -264,6 +264,9 @@ export function useBlockOperations(
             id: stackId,
             type: 'stackContainer',
             position: { x: containerX, y: containerY },
+            // Inherit parent from original block if grouped
+            ...(currentNode.parentId ? { parentId: currentNode.parentId } : {}),
+            ...(currentNode.extent ? { extent: currentNode.extent } : {}),
             data: { width: containerWidth, height: containerHeight, stackId },
             selectable: true,
             draggable: true,
@@ -438,6 +441,9 @@ export function useBlockOperations(
             id: stackId,
             type: 'stackContainer',
             position: { x: containerX, y: containerY },
+            // Inherit parent from original block if grouped
+            ...(currentNode.parentId ? { parentId: currentNode.parentId } : {}),
+            ...(currentNode.extent ? { extent: currentNode.extent } : {}),
             data: { width: containerWidth, height: estimatedTotalHeight, stackId },
             selectable: true,
             draggable: true,
@@ -617,6 +623,9 @@ export function useBlockOperations(
             id: stackId,
             type: 'stackContainer',
             position: { x: containerX, y: containerY },
+            // Inherit parent from original block if grouped
+            ...(node.parentId ? { parentId: node.parentId } : {}),
+            ...(node.extent ? { extent: node.extent } : {}),
             data: { width: containerWidth, height: containerHeight, stackId },
             selectable: true,
             draggable: true,

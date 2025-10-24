@@ -1200,7 +1200,28 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                 return b
               })
 
-              loadBlocks(updatedBlocks)
+              // Update React Flow nodes directly instead of loadBlocks
+              setNodes((currentNodes) => {
+                // Update block nodes with new parentId/extent/position
+                const updated = currentNodes.map((rfNode) => {
+                  const updatedBlock = updatedBlocks.find(b => b.id === rfNode.id)
+                  if (updatedBlock && rfNode.type === 'block') {
+                    return {
+                      ...rfNode,
+                      parentId: updatedBlock.parentId,
+                      extent: updatedBlock.extent as any,
+                      position: updatedBlock.position || rfNode.position,
+                      data: {
+                        ...(rfNode.data || {}),
+                        ...updatedBlock,
+                      }
+                    }
+                  }
+                  return rfNode
+                })
+                // Sync containers with ALL nodes (preserves existing containers)
+                return syncContainersWithCallbacks(updated)
+              })
 
               // Emit change events for all blocks
               stackBlocks.forEach(b => {
@@ -1237,7 +1258,28 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                 : b
             )
 
-            loadBlocks(updatedBlocks)
+            // Update React Flow nodes directly instead of loadBlocks
+            setNodes((currentNodes) => {
+              // Update block node with new parentId/extent/position
+              const updated = currentNodes.map((rfNode) => {
+                if (rfNode.id === node.id && rfNode.type === 'block') {
+                  const updatedBlock = updatedBlocks.find(b => b.id === node.id)!
+                  return {
+                    ...rfNode,
+                    parentId: updatedBlock.parentId,
+                    extent: updatedBlock.extent as any,
+                    position: updatedBlock.position || rfNode.position,
+                    data: {
+                      ...(rfNode.data || {}),
+                      ...updatedBlock,
+                    }
+                  }
+                }
+                return rfNode
+              })
+              // Sync containers with ALL nodes (preserves existing containers)
+              return syncContainersWithCallbacks(updated)
+            })
 
             // Emit change event
             emitChange({
@@ -1292,7 +1334,39 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                 return b
               })
 
-              loadBlocks(updatedBlocks)
+              // Update React Flow nodes directly instead of loadBlocks
+              setNodes((currentNodes) => {
+                // Update container AND block nodes with removed parentId/extent
+                const updated = currentNodes.map((rfNode) => {
+                  // Update container node to remove parentId/extent
+                  if (rfNode.id === stackId && rfNode.type === 'stackContainer') {
+                    return {
+                      ...rfNode,
+                      parentId: undefined,
+                      extent: undefined,
+                      // Position is already absolute from React Flow drag
+                    }
+                  }
+
+                  // Update block nodes with absolute positions
+                  const updatedBlock = updatedBlocks.find(b => b.id === rfNode.id)
+                  if (updatedBlock && rfNode.type === 'block') {
+                    return {
+                      ...rfNode,
+                      parentId: updatedBlock.parentId,
+                      extent: updatedBlock.extent,
+                      position: updatedBlock.position || rfNode.position,
+                      data: {
+                        ...(rfNode.data || {}),
+                        ...updatedBlock,
+                      }
+                    }
+                  }
+                  return rfNode
+                })
+                // Sync containers - container has no parentId so won't preserve group parent
+                return syncContainersWithCallbacks(updated)
+              })
 
               // Emit change events for all blocks
               stackBlocks.forEach(b => {
@@ -1333,7 +1407,28 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                 : b
             )
 
-            loadBlocks(updatedBlocks)
+            // Update React Flow nodes directly instead of loadBlocks
+            setNodes((currentNodes) => {
+              // Update block node with removed parentId/extent and absolute position
+              const updated = currentNodes.map((rfNode) => {
+                if (rfNode.id === node.id && rfNode.type === 'block') {
+                  const updatedBlock = updatedBlocks.find(b => b.id === node.id)!
+                  return {
+                    ...rfNode,
+                    parentId: updatedBlock.parentId,
+                    extent: updatedBlock.extent,
+                    position: updatedBlock.position || rfNode.position,
+                    data: {
+                      ...(rfNode.data || {}),
+                      ...updatedBlock,
+                    }
+                  }
+                }
+                return rfNode
+              })
+              // Sync containers with ALL nodes (preserves existing containers)
+              return syncContainersWithCallbacks(updated)
+            })
 
             // Emit change event
             emitChange({

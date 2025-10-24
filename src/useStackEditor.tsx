@@ -1453,18 +1453,24 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
         // RESTORE EXTENT: Node dragged but stayed within parent
         if (hadOriginalExtent && node.parentId) {
-          setNodes((nds) => nds.map((n) => {
-            if (n.id === node.id) {
-              const { __originalExtent, ...nodeWithoutMeta } = n as any
-              return {
-                ...nodeWithoutMeta,
-                extent: __originalExtent,
-              } as Node
-            }
-            return n
-          }))
+          // Only restore extent for GROUP parents, not stack containers
+          const parentNode = allNodesSnapshot.find(n => n.id === node.parentId)
+          const isGroupParent = parentNode && opts.groupNodeTypes?.includes(parentNode.type)
 
-          // Continue with normal drag stop handling
+          if (isGroupParent) {
+            setNodes((nds) => nds.map((n) => {
+              if (n.id === node.id) {
+                const { __originalExtent, ...nodeWithoutMeta } = n as any
+                return {
+                  ...nodeWithoutMeta,
+                  extent: __originalExtent,
+                } as Node
+              }
+              return n
+            }))
+
+            // Continue with normal drag stop handling
+          }
         }
       }
 

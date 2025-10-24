@@ -1294,10 +1294,19 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
         // AUTO-UNPARENT: Node dragged outside its parent group
         if (!intersectingGroup && node.parentId) {
-          const blocks = getBlocks()
+          // Only auto-unparent if parent is a GROUP node, not a stack container
+          const parentNode = allNodesSnapshot.find(n => n.id === node.parentId)
+          const isGroupParent = parentNode && opts.groupNodeTypes?.includes(parentNode.type)
 
-          // Handle stack containers specially
-          if ((node as any).type === 'stackContainer') {
+          if (!isGroupParent) {
+            // Parent is a stack container or other non-group parent
+            // Skip auto-unparent, fall through to normal drag handling
+          } else {
+            // Parent is a group - proceed with auto-unparent
+            const blocks = getBlocks()
+
+            // Handle stack containers specially
+            if ((node as any).type === 'stackContainer') {
             const stackId = node.id
             const stackBlocks = blocks.filter(b => (b as any).stackId === stackId)
 
@@ -1438,6 +1447,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
             // Skip normal drag stop handling
             return
+          }
           }
         }
 

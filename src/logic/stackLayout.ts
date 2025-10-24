@@ -271,30 +271,63 @@ export function syncStackContainers(
 
       newContainers.push(containerNode)
     } else {
-      // Single block: no stack container needed, but preserve group parent if exists
+      // Single block: check if container had group parent and inherit it
       stackNodes.forEach((block: any) => {
-        let absolutePosition = block.position
+        let newPosition, newParentId, newExtent
 
-        // If block had a stack container parent (not a group parent), convert to absolute
+        // If block had stack container parent, check if container had group parent
         if (block.parentId === stackId) {
-          const parent = allNodes.find(n => n.id === block.parentId)
-          if (parent) {
-            absolutePosition = {
-              x: parent.position.x + block.position.x,
-              y: parent.position.y + block.position.y
+          const container = allNodes.find(n => n.id === stackId)
+          const containerGroupParent = container?.parentId
+
+          if (containerGroupParent) {
+            // Inherit group parent from container
+            const containerAbsPos = getAbsolutePosition(container, allNodes)
+            const groupNode = allNodes.find(n => n.id === containerGroupParent)
+            const groupAbsPos = groupNode
+              ? getAbsolutePosition(groupNode, allNodes)
+              : { x: 0, y: 0 }
+
+            // Block's absolute position
+            const blockAbsPos = {
+              x: containerAbsPos.x + block.position.x,
+              y: containerAbsPos.y + block.position.y
             }
+
+            // Convert to relative within group
+            newPosition = {
+              x: blockAbsPos.x - groupAbsPos.x,
+              y: blockAbsPos.y - groupAbsPos.y
+            }
+            newParentId = containerGroupParent
+            newExtent = 'parent'
+          } else {
+            // No group parent, convert to absolute
+            const containerAbsPos = container
+              ? getAbsolutePosition(container, allNodes)
+              : { x: 0, y: 0 }
+            newPosition = {
+              x: containerAbsPos.x + block.position.x,
+              y: containerAbsPos.y + block.position.y
+            }
+            newParentId = undefined
+            newExtent = undefined
           }
+        } else {
+          // Block doesn't have stack parent - keep as-is
+          newPosition = block.position
+          newParentId = block.parentId
+          newExtent = block.extent
         }
 
-        // Remove className and stack container parentId, but preserve group parentId and extent
         const { className, ...rest } = block
-        const shouldRemoveParent = block.parentId === stackId // Only remove if parent is the stack container
         const { stackId: _stackId, ...restData } = rest.data || {}
 
         updatedBlocks.push({
           ...rest,
-          position: absolutePosition,
-          ...(shouldRemoveParent ? { parentId: undefined } : {}),
+          position: newPosition,
+          parentId: newParentId,
+          extent: newExtent,
           data: restData
         } as Node)
       })

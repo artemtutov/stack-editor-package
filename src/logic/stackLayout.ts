@@ -304,10 +304,65 @@ export function syncStackContainers(
   // Handle blocks without stackId (standalone blocks)
   blockNodes.forEach((node: any) => {
     if (!node.data?.stackId) {
-      // Preserve group parentId and extent for standalone blocks
-      // These nodes are not in stacks, so keep their position and parent as-is
-      const { className, ...rest } = node
-      updatedBlocks.push(rest as Node)
+      // Check if parentId points to a stack container (orphaned parent reference)
+      const isStackContainerParent = node.parentId &&
+        existingContainers.some(c => c.id === node.parentId)
+
+      if (isStackContainerParent) {
+        // Block was removed from stack but still has stack container parentId
+        const parent = allNodes.find(n => n.id === node.parentId)
+        const parentAbsolutePos = parent
+          ? getAbsolutePosition(parent, allNodes)
+          : { x: 0, y: 0 }
+
+        // Check if stack container has a group parent
+        const containerGroupParent = parent?.parentId
+
+        let newPosition, newParentId, newExtent
+
+        if (containerGroupParent) {
+          // Inherit group parent from container
+          const groupNode = allNodes.find(n => n.id === containerGroupParent)
+          const groupAbsolutePos = groupNode
+            ? getAbsolutePosition(groupNode, allNodes)
+            : { x: 0, y: 0 }
+
+          // Block's absolute position
+          const blockAbsolutePos = {
+            x: parentAbsolutePos.x + node.position.x,
+            y: parentAbsolutePos.y + node.position.y
+          }
+
+          // Convert to relative within group
+          newPosition = {
+            x: blockAbsolutePos.x - groupAbsolutePos.x,
+            y: blockAbsolutePos.y - groupAbsolutePos.y
+          }
+          newParentId = containerGroupParent
+          newExtent = 'parent'
+        } else {
+          // No group parent, convert to absolute
+          newPosition = {
+            x: parentAbsolutePos.x + node.position.x,
+            y: parentAbsolutePos.y + node.position.y
+          }
+          newParentId = undefined
+          newExtent = undefined
+        }
+
+        const { className, ...rest } = node
+        updatedBlocks.push({
+          ...rest,
+          position: newPosition,
+          parentId: newParentId,
+          extent: newExtent,
+        } as Node)
+      } else {
+        // Normal standalone block - preserve group parentId and extent if exists
+        // These nodes are not in stacks, so keep their position and parent as-is
+        const { className, ...rest } = node
+        updatedBlocks.push(rest as Node)
+      }
     }
   })
 

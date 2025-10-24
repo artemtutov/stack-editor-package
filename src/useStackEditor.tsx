@@ -1391,8 +1391,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                 })
               })
 
-              // Skip normal drag stop handling
-              return
+              // Fall through to normal drag stop handling (will return early for containers)
             }
           }
 
@@ -1451,8 +1450,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
               blockId: node.id,
             })
 
-            // Skip normal drag stop handling
-            return
+            // Fall through to normal drag stop handling to allow stack attachment
           }
           }
         }

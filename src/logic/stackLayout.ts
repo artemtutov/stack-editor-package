@@ -150,6 +150,38 @@ export function syncStackContainers(
         blockWidth + 8
       const childWidth = containerWidth - 8 // Account for padding
 
+      // IMPORTANT: Detect group parent BEFORE modifying blocks
+      // Check if all blocks in this stack share the same group parent
+      let groupParentId: string | undefined = undefined
+      let groupExtent: 'parent' | undefined = undefined
+
+      console.log('🔍 Analyzing stack blocks for group parent:', {
+        stackId,
+        blockCount: stackNodes.length,
+        blockParentIds: stackNodes.map((b: any) => ({ id: b.id, parentId: b.parentId, type: b.type }))
+      })
+
+      const blockGroupParents = stackNodes
+        .map((b: any) => b.parentId)  // Check their CURRENT parentId (before we change it to stackId)
+        .filter((pid: string | undefined) => pid && pid !== stackId) // Exclude stack container itself
+
+      console.log('🔍 After filtering:', {
+        blockGroupParents,
+        allSame: blockGroupParents.every((pid: string) => pid === blockGroupParents[0]),
+        allHaveParent: blockGroupParents.length === stackNodes.length
+      })
+
+      if (blockGroupParents.length > 0 &&
+          blockGroupParents.length === stackNodes.length &&  // ALL blocks must have a group parent
+          blockGroupParents.every((pid: string) => pid === blockGroupParents[0])) {
+        // All blocks share the same group parent
+        groupParentId = blockGroupParents[0]
+        groupExtent = 'parent'
+        console.log('✅ Stack container', stackId, 'inherits group parent:', groupParentId)
+      } else {
+        console.log('❌ Stack container', stackId, 'will NOT inherit group parent')
+      }
+
       // Convert blocks to relative positions if needed
       stackNodes.forEach((block: any) => {
         let relativeX: number, relativeY: number
@@ -189,13 +221,36 @@ export function syncStackContainers(
       // containerWidth already calculated above
       const containerHeight = maxY - minY + headerHeight + 8
 
-      newContainers.push({
+      // Build the container node with proper parent relationship
+      // groupParentId was detected earlier (before blocks were modified)
+      let containerParent: { parentId?: string; extent?: 'parent' } = {}
+      if (existingContainer?.parentId) {
+        // Preserve existing container's group parent
+        containerParent = {
+          parentId: existingContainer.parentId,
+          extent: existingContainer.extent as 'parent' | undefined
+        }
+      } else if (groupParentId) {
+        // Inherit group parent from blocks
+        containerParent = {
+          parentId: groupParentId,
+          extent: groupExtent
+        }
+      }
+
+      console.log('🔨 Creating stack container:', {
+        stackId,
+        blockCount: stackNodes.length,
+        groupParentId,
+        containerParent,
+        position: { x: containerX, y: containerY }
+      })
+
+      const containerNode = {
         id: stackId,
         type: 'stackContainer',
         position: { x: containerX, y: containerY },
-        // Preserve parentId and extent if container is grouped
-        ...(existingContainer?.parentId ? { parentId: existingContainer.parentId } : {}),
-        ...(existingContainer?.extent ? { extent: existingContainer.extent } : {}),
+        ...containerParent,
         style: {
           width: containerWidth,
           height: containerHeight,
@@ -205,7 +260,16 @@ export function syncStackContainers(
         draggable: true,
         resizable: false,
         zIndex: -1,
-      } as Node)
+      } as Node
+
+      console.log('📦 Final container node:', {
+        id: containerNode.id,
+        parentId: containerNode.parentId,
+        extent: containerNode.extent,
+        position: containerNode.position
+      })
+
+      newContainers.push(containerNode)
     } else {
       // Single block: no stack container needed, but preserve group parent if exists
       stackNodes.forEach((block: any) => {

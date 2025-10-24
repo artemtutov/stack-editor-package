@@ -23,7 +23,7 @@ import { useStackDrag } from './hooks/useStackDrag'
 import { useBlockOperations, type NodeRefsMap } from './hooks/useBlockOperations'
 import { useKeyboardNav, useTabHandlers } from './hooks/useKeyboardNav'
 import { nextBlockId, nextStackId } from './logic/stackState'
-import { updateBottomNodeFlags } from './logic/stackLayout'
+import { updateBottomNodeFlags, getStackBlocks } from './logic/stackLayout'
 import { sanitizeAndSave } from './utils/sanitizeHTML'
 import { createEmptyPayload, htmlToJson, jsonToHtml, ensureJsonContent, CURRENT_SCHEMA_VERSION } from './editor/richText'
 import { getAbsolutePosition, convertAbsoluteToRelative, convertRelativeToAbsolute, findIntersectingGroup } from './logic/grouping'
@@ -1167,6 +1167,55 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         // AUTO-PARENT: Node dropped into group
         if (intersectingGroup && !node.parentId) {
           const blocks = getBlocks()
+
+          // Handle stack containers specially
+          if ((node as any).type === 'stackContainer') {
+            const stackId = node.id
+            const stackBlocks = blocks.filter(b => (b as any).stackId === stackId)
+
+            if (stackBlocks.length > 0) {
+              // Get absolute position of container and group
+              const containerAbsolutePos = getAbsolutePosition(node, allNodesSnapshot)
+              const groupAbsolutePos = getAbsolutePosition(intersectingGroup, allNodesSnapshot)
+
+              // Update all blocks in the stack
+              const updatedBlocks = blocks.map(b => {
+                if ((b as any).stackId === stackId) {
+                  // Block's current absolute position
+                  const blockNode = allNodesSnapshot.find(n => n.id === b.id)
+                  const blockAbsolutePos = blockNode
+                    ? getAbsolutePosition(blockNode, allNodesSnapshot)
+                    : { x: containerAbsolutePos.x + (b.position?.x || 0), y: containerAbsolutePos.y + (b.position?.y || 0) }
+
+                  // Convert to relative position within group
+                  const relativePos = convertAbsoluteToRelative(blockAbsolutePos, groupAbsolutePos)
+
+                  return {
+                    ...b,
+                    parentId: intersectingGroup.id,
+                    extent: 'parent' as const,
+                    position: relativePos,
+                  }
+                }
+                return b
+              })
+
+              loadBlocks(updatedBlocks)
+
+              // Emit change events for all blocks
+              stackBlocks.forEach(b => {
+                emitChange({
+                  type: 'block.group',
+                  blockId: b.id!,
+                })
+              })
+
+              // Skip normal drag stop handling
+              return
+            }
+          }
+
+          // Handle individual blocks
           const blockToGroup = blocks.find(b => b.id === node.id)
 
           if (blockToGroup) {
@@ -1204,6 +1253,61 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         // AUTO-UNPARENT: Node dragged outside its parent group
         if (!intersectingGroup && node.parentId) {
           const blocks = getBlocks()
+
+          // Handle stack containers specially
+          if ((node as any).type === 'stackContainer') {
+            const stackId = node.id
+            const stackBlocks = blocks.filter(b => (b as any).stackId === stackId)
+
+            if (stackBlocks.length > 0) {
+              // Get parent (group) absolute position
+              const parentNode = allNodesSnapshot.find(n => n.id === node.parentId)
+              const parentAbsolutePos = parentNode
+                ? getAbsolutePosition(parentNode, allNodesSnapshot)
+                : { x: 0, y: 0 }
+
+              // Container's current absolute position
+              const containerAbsolutePos = getAbsolutePosition(node, allNodesSnapshot)
+
+              // Update all blocks in the stack
+              const updatedBlocks = blocks.map(b => {
+                if ((b as any).stackId === stackId) {
+                  // Block's current position (relative to container)
+                  const blockNode = allNodesSnapshot.find(n => n.id === b.id)
+                  const blockRelativePos = blockNode?.position || b.position || { x: 0, y: 0 }
+
+                  // Block's absolute position = container absolute + block relative
+                  const blockAbsolutePos = {
+                    x: containerAbsolutePos.x + blockRelativePos.x,
+                    y: containerAbsolutePos.y + blockRelativePos.y,
+                  }
+
+                  return {
+                    ...b,
+                    parentId: undefined,
+                    extent: undefined,
+                    position: blockAbsolutePos,
+                  }
+                }
+                return b
+              })
+
+              loadBlocks(updatedBlocks)
+
+              // Emit change events for all blocks
+              stackBlocks.forEach(b => {
+                emitChange({
+                  type: 'block.ungroup',
+                  blockId: b.id!,
+                })
+              })
+
+              // Skip normal drag stop handling
+              return
+            }
+          }
+
+          // Handle individual blocks
           const blockToUngroup = blocks.find(b => b.id === node.id)
 
           if (blockToUngroup) {

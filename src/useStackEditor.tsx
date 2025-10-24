@@ -26,6 +26,7 @@ import { nextBlockId, nextStackId } from './logic/stackState'
 import { updateBottomNodeFlags } from './logic/stackLayout'
 import { sanitizeAndSave } from './utils/sanitizeHTML'
 import { createEmptyPayload, htmlToJson, jsonToHtml, ensureJsonContent, CURRENT_SCHEMA_VERSION } from './editor/richText'
+import { getAbsolutePosition, convertAbsoluteToRelative, convertRelativeToAbsolute, findIntersectingGroup } from './logic/grouping'
 
 // Default options
 const DEFAULTS: Required<StackEditorOptions> = {
@@ -35,6 +36,8 @@ const DEFAULTS: Required<StackEditorOptions> = {
   enableContainerDrag: true,
   enableShiftGroupDrag: true,
   enableSlashMenu: true,
+  enableAutoGrouping: true,
+  groupNodeTypes: ['group'],
   xTolerance: 10,
   yHysteresis: 3,
   indicatorStabilityPx: 0.5,
@@ -318,6 +321,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     xTolerance: opts.xTolerance,
     blockWidth: opts.blockWidth,
     enableShiftGroupDrag: opts.enableShiftGroupDrag,
+    enableAutoGrouping: opts.enableAutoGrouping,
+    groupNodeTypes: opts.groupNodeTypes,
     gap: opts.gap,
     headerHeight: opts.headerHeight,
   })
@@ -947,6 +952,142 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     }
   }, [])
 
+  // ===== Grouping APIs =====
+
+  // Update a single node's parent relationship
+  const updateNodeParent = useCallback((nodeId: string, parentId?: string, extent?: 'parent') => {
+    const blocks = getBlocks()
+    const block = blocks.find(b => b.id === nodeId)
+    if (!block) return
+
+    const allNodesSnapshot = reactFlowInstance.getNodes()
+
+    // Get group node if parenting
+    const groupNode = parentId ? reactFlowInstance.getNode(parentId) : null
+
+    // Convert position if needed
+    let newPosition = block.position
+    if (parentId && groupNode) {
+      // Converting to child: absolute → relative
+      const absolutePos = block.position || { x: 0, y: 0 }
+      // Get absolute position of group (handles nested groups)
+      const groupAbsolutePos = getAbsolutePosition(groupNode, allNodesSnapshot)
+      newPosition = convertAbsoluteToRelative(absolutePos, groupAbsolutePos)
+    } else if (!parentId && block.parentId) {
+      // Converting to standalone: relative → absolute
+      const oldParent = reactFlowInstance.getNode(block.parentId)
+      if (oldParent) {
+        const relativePos = block.position || { x: 0, y: 0 }
+        // Get absolute position of parent (handles nested groups)
+        const parentAbsolutePos = getAbsolutePosition(oldParent, allNodesSnapshot)
+        newPosition = convertRelativeToAbsolute(relativePos, parentAbsolutePos)
+      }
+    }
+
+    // Update block
+    const updatedBlocks = blocks.map(b =>
+      b.id === nodeId
+        ? {
+            ...b,
+            parentId,
+            extent,
+            position: newPosition,
+          }
+        : b
+    )
+
+    loadBlocks(updatedBlocks)
+
+    // Emit change event
+    emitChange({
+      type: parentId ? 'block.group' : 'block.ungroup',
+      blockId: nodeId,
+    })
+  }, [getBlocks, loadBlocks, reactFlowInstance, emitChange])
+
+  // Group multiple nodes into a parent group
+  const groupNodes = useCallback((nodeIds: string[], parentGroupId: string) => {
+    const groupNode = reactFlowInstance.getNode(parentGroupId)
+    if (!groupNode) {
+      console.warn(`[groupNodes] Group node ${parentGroupId} not found`)
+      return
+    }
+
+    const blocks = getBlocks()
+    const allNodesSnapshot = reactFlowInstance.getNodes()
+
+    // Get absolute position of group (handles nested groups)
+    const groupAbsolutePos = getAbsolutePosition(groupNode, allNodesSnapshot)
+
+    const updatedBlocks = blocks.map(block => {
+      if (!nodeIds.includes(block.id!)) return block
+
+      // Find this block in React Flow nodes to get absolute position
+      const blockNode = allNodesSnapshot.find(n => n.id === block.id)
+      const absolutePos = blockNode
+        ? getAbsolutePosition(blockNode, allNodesSnapshot)
+        : block.position || { x: 0, y: 0 }
+
+      // Convert to relative position within group
+      const relativePos = convertAbsoluteToRelative(absolutePos, groupAbsolutePos)
+
+      return {
+        ...block,
+        parentId: parentGroupId,
+        extent: 'parent' as const,
+        position: relativePos,
+      }
+    })
+
+    loadBlocks(updatedBlocks)
+
+    // Emit change event for each grouped node
+    nodeIds.forEach(nodeId => {
+      emitChange({
+        type: 'block.group',
+        blockId: nodeId,
+      })
+    })
+  }, [getBlocks, loadBlocks, reactFlowInstance, emitChange])
+
+  // Ungroup nodes from their parent
+  const ungroupNodes = useCallback((nodeIds: string[]) => {
+    const blocks = getBlocks()
+    const allNodesSnapshot = reactFlowInstance.getNodes()
+
+    const updatedBlocks = blocks.map(block => {
+      if (!nodeIds.includes(block.id!) || !block.parentId) return block
+
+      // Find parent to convert position
+      const parentNode = allNodesSnapshot.find(n => n.id === block.parentId)
+      const relativePos = block.position || { x: 0, y: 0 }
+      // Get absolute position of parent (handles nested groups)
+      const parentAbsolutePos = parentNode
+        ? getAbsolutePosition(parentNode, allNodesSnapshot)
+        : { x: 0, y: 0 }
+      const absolutePos = parentNode
+        ? convertRelativeToAbsolute(relativePos, parentAbsolutePos)
+        : relativePos
+
+      return {
+        ...block,
+        parentId: undefined,
+        extent: undefined,
+        position: absolutePos,
+      }
+    })
+
+    loadBlocks(updatedBlocks)
+
+    // Emit change event for each ungrouped node
+    nodeIds.forEach(nodeId => {
+      emitChange({
+        type: 'block.ungroup',
+        blockId: nodeId,
+      })
+    })
+  }, [getBlocks, loadBlocks, reactFlowInstance, emitChange])
+
   // Overlays
   const overlays = (
     <>
@@ -996,9 +1137,131 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     nodes,
     nodeTypes,
     onNodesChange,
-    onNodeDragStart: (evt, node) => drag.onNodeDragStart(evt, node, nodesRef),
+    onNodeDragStart: (evt, node) => {
+      // Handle extent constraint removal for auto-grouping
+      if (opts.enableAutoGrouping && node.parentId && node.extent === 'parent') {
+        setNodes((nds) => nds.map((n) => {
+          if (n.id === node.id) {
+            return {
+              ...n,
+              extent: undefined,
+              __originalExtent: 'parent',
+            } as Node
+          }
+          return n
+        }))
+      }
+
+      drag.onNodeDragStart(evt, node, nodesRef)
+    },
     onNodeDrag: (evt, node) => drag.onNodeDrag(evt, node, nodesRef, setNodes, reactFlowInstance.flowToScreenPosition, reactFlowInstance.getViewport().zoom),
-    onNodeDragStop: (evt, node) => drag.onNodeDragStop(evt, node, setNodes, updateBottomNodeFlags, syncContainersWithCallbacks),
+    onNodeDragStop: (evt, node) => {
+      // Handle auto-grouping if enabled
+      if (opts.enableAutoGrouping) {
+        const allNodesSnapshot = reactFlowInstance.getNodes()
+        const dropPoint = reactFlowInstance.screenToFlowPosition({ x: evt.clientX, y: evt.clientY })
+        const intersectingGroup = findIntersectingGroup(dropPoint, allNodesSnapshot, opts.groupNodeTypes)
+
+        const hadOriginalExtent = (node as any).__originalExtent
+
+        // AUTO-PARENT: Node dropped into group
+        if (intersectingGroup && !node.parentId) {
+          const blocks = getBlocks()
+          const blockToGroup = blocks.find(b => b.id === node.id)
+
+          if (blockToGroup) {
+            // Use current React Flow position (already updated during drag)
+            const currentRFNode = allNodesSnapshot.find(n => n.id === node.id)
+            const absolutePos = currentRFNode?.position || node.position
+            // Get absolute position of group (handles nested groups)
+            const groupAbsolutePos = getAbsolutePosition(intersectingGroup, allNodesSnapshot)
+            const relativePos = convertAbsoluteToRelative(absolutePos, groupAbsolutePos)
+
+            const updatedBlocks = blocks.map(b =>
+              b.id === node.id
+                ? {
+                    ...b,
+                    parentId: intersectingGroup.id,
+                    extent: 'parent' as const,
+                    position: relativePos,
+                  }
+                : b
+            )
+
+            loadBlocks(updatedBlocks)
+
+            // Emit change event
+            emitChange({
+              type: 'block.group',
+              blockId: node.id,
+            })
+
+            // Skip normal drag stop handling
+            return
+          }
+        }
+
+        // AUTO-UNPARENT: Node dragged outside its parent group
+        if (!intersectingGroup && node.parentId) {
+          const blocks = getBlocks()
+          const blockToUngroup = blocks.find(b => b.id === node.id)
+
+          if (blockToUngroup) {
+            const parentNode = allNodesSnapshot.find(n => n.id === node.parentId)
+            const currentRFNode = allNodesSnapshot.find(n => n.id === node.id)
+            const relativePos = currentRFNode?.position || node.position
+            // Get absolute position of parent (handles nested groups)
+            const parentAbsolutePos = parentNode
+              ? getAbsolutePosition(parentNode, allNodesSnapshot)
+              : { x: 0, y: 0 }
+            const absolutePos = parentNode
+              ? convertRelativeToAbsolute(relativePos, parentAbsolutePos)
+              : relativePos
+
+            const updatedBlocks = blocks.map(b =>
+              b.id === node.id
+                ? {
+                    ...b,
+                    parentId: undefined,
+                    extent: undefined,
+                    position: absolutePos,
+                  }
+                : b
+            )
+
+            loadBlocks(updatedBlocks)
+
+            // Emit change event
+            emitChange({
+              type: 'block.ungroup',
+              blockId: node.id,
+            })
+
+            // Skip normal drag stop handling
+            return
+          }
+        }
+
+        // RESTORE EXTENT: Node dragged but stayed within parent
+        if (hadOriginalExtent && node.parentId) {
+          setNodes((nds) => nds.map((n) => {
+            if (n.id === node.id) {
+              const { __originalExtent, ...nodeWithoutMeta } = n as any
+              return {
+                ...nodeWithoutMeta,
+                extent: __originalExtent,
+              } as Node
+            }
+            return n
+          }))
+
+          // Continue with normal drag stop handling
+        }
+      }
+
+      // Normal drag stop handling for stack operations
+      drag.onNodeDragStop(evt, node, setNodes, updateBottomNodeFlags, syncContainersWithCallbacks)
+    },
     onMove,
     focus,
     addBelow: blockOps.addBelow,
@@ -1008,6 +1271,10 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     createBlock,
     loadBlocks,
     expandStack,
+    // Grouping APIs
+    groupNodes,
+    ungroupNodes,
+    updateNodeParent,
     overlays,
     // History/undo-redo APIs
     getSnapshot,

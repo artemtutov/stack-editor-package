@@ -48,6 +48,8 @@ export type StackEditorOptions = {
   enableContainerDrag?: boolean
   enableShiftGroupDrag?: boolean
   enableSlashMenu?: boolean
+  enableAutoGrouping?: boolean // Enable automatic grouping on drag (default: true)
+  groupNodeTypes?: string[] // Node types to treat as groups (default: ['group'])
   xTolerance?: number // px: horizontal tolerance to consider a stack target
   yHysteresis?: number // px: vertical band around midlines to reduce flicker
   indicatorStabilityPx?: number // px: minimal delta to update overlay
@@ -86,6 +88,8 @@ export type ChangeEventType =
   | 'block.create'
   | 'block.delete'
   | 'block.move.end'
+  | 'block.group'
+  | 'block.ungroup'
   | 'content.commit'
   | 'stack.expand'
   | 'stack.collapse'
@@ -115,6 +119,10 @@ export type StackEditorHookResult = {
   createBlock: (block: Partial<InitialBlock>) => void
   loadBlocks: (blocks: InitialBlock[]) => void
   expandStack: (stackId: string) => void
+  // Grouping APIs
+  groupNodes: (nodeIds: string[], parentGroupId: string) => void
+  ungroupNodes: (nodeIds: string[]) => void
+  updateNodeParent: (nodeId: string, parentId?: string, extent?: 'parent') => void
   // overlays to render alongside ReactFlow
   overlays: React.ReactNode
   // History/undo-redo APIs

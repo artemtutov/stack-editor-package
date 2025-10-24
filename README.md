@@ -2,11 +2,24 @@
 
 A Notion-style stacked block editor built on React Flow. Features drag-and-drop stacking, keyboard navigation, rich text editing via TipTap, and customizable block renderers.
 
+## 🎉 What's New in v0.3.0
+
+Native grouping support for React Flow group nodes! No more glue code needed.
+
+- ✅ **Drag-based auto-grouping** - Blocks automatically parent/unparent when dragged into/out of groups
+- ✅ **Selection-based APIs** - `groupNodes()`, `ungroupNodes()`, `updateNodeParent()`
+- ✅ **Nested group support** - Works with groups within groups
+- ✅ **Position utilities** - Exported helpers for coordinate conversion
+- ✅ **Undo/redo events** - Emits `block.group` and `block.ungroup` events
+
+[**📖 See migration guide**](./GROUPING_INTEGRATION.md) if upgrading from v0.2.x
+
 ## Features
 
 - ✨ **Notion-style stacking** - Vertical block stacking with automatic layout
 - 📝 **Rich text editing** - TipTap integration with formatting, headings, lists, links, and more
 - 🎯 **Drag & drop** - Reorder blocks with visual drop indicators
+- 🔲 **Native grouping support** ⭐ NEW in v0.3.0 - Auto-grouping on drag, selection-based APIs, nested groups
 - ⌨️ **Keyboard navigation** - Tab/Shift+Tab navigation, Enter to split, Backspace to merge
 - 🖥️ **Fullscreen mode** - Deep-sync editing with block diffing (blocksToDoc/docToBlocks)
 - 🎨 **Customizable renderers** - Override default block and container components
@@ -72,6 +85,39 @@ function App() {
 - **Slash menu**: Type `/` for quick formatting options
 - **Mobile support**: Touch-friendly with safe-area insets
 
+### Grouping Features ⭐ NEW
+
+Version 0.3.0 introduces native grouping support for React Flow group nodes:
+
+- **Drag-based auto-grouping**: Drag blocks into/out of groups to automatically parent/unparent
+- **Selection-based grouping**: Use `groupNodes()` and `ungroupNodes()` APIs
+- **Nested groups**: Full support for groups within groups
+- **Container grouping**: Stack containers can be grouped too
+- **Position utilities**: Exported helpers for coordinate conversion
+- **Undo/redo integration**: Emits `block.group` and `block.ungroup` events
+
+```tsx
+// Enable auto-grouping (enabled by default)
+const editor = useStackEditor({
+  options: {
+    enableAutoGrouping: true,      // Auto-parent on drag
+    groupNodeTypes: ['group'],     // Which node types are groups
+  }
+})
+
+// Selection-based grouping
+editor.groupNodes(['block1', 'block2'], 'group-123')
+
+// Ungrouping
+editor.ungroupNodes(['block1', 'block2'])
+
+// Position utilities
+import { getAbsolutePosition, convertAbsoluteToRelative } from '@stack-editor/react'
+const absolutePos = getAbsolutePosition(node, allNodes)
+```
+
+📖 **[See full integration guide](./GROUPING_INTEGRATION.md)** for migrating from custom glue code.
+
 ## API
 
 ### StackEditor Props
@@ -89,14 +135,16 @@ interface StackEditorProps {
 
   // Configuration options
   options?: {
-    blockWidth?: number          // Default: 200
-    gap?: number                 // Default: 2
-    headerHeight?: number        // Default: 28
-    enableContainerDrag?: boolean // Default: true
+    blockWidth?: number            // Default: 242
+    gap?: number                   // Default: 2
+    headerHeight?: number          // Default: 28
+    enableContainerDrag?: boolean  // Default: true
     enableShiftGroupDrag?: boolean // Default: true
-    enableSlashMenu?: boolean    // Default: true
-    xTolerance?: number          // Default: 10
-    yHysteresis?: number         // Default: 3
+    enableSlashMenu?: boolean      // Default: true
+    enableAutoGrouping?: boolean   // Default: true (NEW in v0.3.0)
+    groupNodeTypes?: string[]      // Default: ['group'] (NEW in v0.3.0)
+    xTolerance?: number            // Default: 10
+    yHysteresis?: number           // Default: 3
   }
 
   // Render prop that receives editor state
@@ -123,6 +171,23 @@ editor.focus(id)    // Focus a block
 editor.addBelow(id) // Add block below
 editor.split(id, before, after) // Split block
 editor.delete(id)   // Delete block
+
+// Grouping APIs (NEW in v0.3.0)
+editor.groupNodes(['id1', 'id2'], 'groupId')  // Group blocks
+editor.ungroupNodes(['id1', 'id2'])           // Ungroup blocks
+editor.updateNodeParent('id', 'groupId')      // Set parent
+
+// Persistence
+editor.getBlocks()       // Get current state (includes parentId/extent)
+editor.loadBlocks(blocks) // Load state
+editor.createBlock({ html: '<p>Hi</p>', parentId: 'group1' })
+
+// Undo/redo coordination
+editor.getSnapshot()     // Get snapshot for undo
+editor.applySnapshot(snapshot) // Restore snapshot
+editor.onChange((event) => {
+  // Listen for changes: 'block.group', 'block.ungroup', etc.
+})
 ```
 
 ## Development

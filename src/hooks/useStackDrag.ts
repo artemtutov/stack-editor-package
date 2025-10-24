@@ -8,11 +8,14 @@ import {
 } from '../logic/dragAndDrop'
 import { ensureInsertionOrder, calculateStackLayout } from '../logic/stackLayout'
 import { assignBlockToStack, nextStackId } from '../logic/stackState'
+import { findIntersectingGroup, convertAbsoluteToRelative, convertRelativeToAbsolute } from '../logic/grouping'
 
 export type UseStackDragOptions = {
   xTolerance: number
   blockWidth: number
   enableShiftGroupDrag: boolean
+  enableAutoGrouping: boolean
+  groupNodeTypes: string[]
   gap: number
   headerHeight: number
 }
@@ -47,7 +50,7 @@ export type UseStackDragResult = {
  * Hook for managing drag and drop behavior
  */
 export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
-  const { xTolerance, blockWidth, enableShiftGroupDrag, gap, headerHeight } = options
+  const { xTolerance, blockWidth, enableShiftGroupDrag, enableAutoGrouping, groupNodeTypes, gap, headerHeight } = options
 
   const [dropIndicator, setDropIndicator] = useState({
     show: false,
@@ -70,9 +73,13 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
       }
 
       const stackId = (node as any)?.data?.stackId
-      if (!stackId) return
+      if (stackId) {
+        dragStartStackIdRef.current = stackId
+      }
 
-      dragStartStackIdRef.current = stackId
+      // NOTE: Extent constraint removal is now handled by useStackEditor
+      // to avoid double-handling. The stack editor will remove extent
+      // constraints before calling this handler.
     },
     []
   )

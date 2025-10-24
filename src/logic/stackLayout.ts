@@ -193,6 +193,9 @@ export function syncStackContainers(
         id: stackId,
         type: 'stackContainer',
         position: { x: containerX, y: containerY },
+        // Preserve parentId and extent if container is grouped
+        ...(existingContainer?.parentId ? { parentId: existingContainer.parentId } : {}),
+        ...(existingContainer?.extent ? { extent: existingContainer.extent } : {}),
         style: {
           width: containerWidth,
           height: containerHeight,
@@ -204,12 +207,12 @@ export function syncStackContainers(
         zIndex: -1,
       } as Node)
     } else {
-      // Single block: no parent needed
+      // Single block: no stack container needed, but preserve group parent if exists
       stackNodes.forEach((block: any) => {
         let absolutePosition = block.position
 
-        // If block had a parent, convert relative position to absolute
-        if (block.parentId) {
+        // If block had a stack container parent (not a group parent), convert to absolute
+        if (block.parentId === stackId) {
           const parent = allNodes.find(n => n.id === block.parentId)
           if (parent) {
             absolutePosition = {
@@ -219,39 +222,28 @@ export function syncStackContainers(
           }
         }
 
-        const { className, parentId, ...rest } = block
-        // Remove stackId property completely (not just set to undefined)
-        const { stackId, ...restData } = rest.data || {}
+        // Remove className and stack container parentId, but preserve group parentId and extent
+        const { className, ...rest } = block
+        const shouldRemoveParent = block.parentId === stackId // Only remove if parent is the stack container
+        const { stackId: _stackId, ...restData } = rest.data || {}
+
         updatedBlocks.push({
           ...rest,
           position: absolutePosition,
+          ...(shouldRemoveParent ? { parentId: undefined } : {}),
           data: restData
         } as Node)
       })
     }
   })
 
-  // Handle blocks without stackId
+  // Handle blocks without stackId (standalone blocks)
   blockNodes.forEach((node: any) => {
     if (!node.data?.stackId) {
-      let absolutePosition = node.position
-
-      // Convert from relative to absolute if node has parent
-      if (node.parentId) {
-        const parent = allNodes.find(n => n.id === node.parentId)
-        if (parent) {
-          absolutePosition = {
-            x: parent.position.x + node.position.x,
-            y: parent.position.y + node.position.y
-          }
-        }
-      }
-
-      const { className, parentId, ...rest } = node
-      updatedBlocks.push({
-        ...rest,
-        position: absolutePosition
-      } as Node)
+      // Preserve group parentId and extent for standalone blocks
+      // These nodes are not in stacks, so keep their position and parent as-is
+      const { className, ...rest } = node
+      updatedBlocks.push(rest as Node)
     }
   })
 

@@ -25,3 +25,12 @@ export { default as SlashMenu } from './renderers/SlashMenu'
 export { default as DropIndicator } from './renderers/DropIndicator'
 export { default as FullscreenModal } from './renderers/FullscreenModal'
 export { default as FullscreenEditor } from './renderers/FullscreenEditor'
+
+// Export grouping utilities
+export {
+  getAbsolutePosition,
+  convertAbsoluteToRelative,
+  convertRelativeToAbsolute,
+  isPointWithinNode,
+  findIntersectingGroup,
+} from './logic/grouping'

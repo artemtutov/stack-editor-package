@@ -1152,9 +1152,15 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         }))
       }
 
+      // Update nodesRef with all React Flow nodes (including group nodes from consumer)
+      nodesRef.current = reactFlowInstance.getNodes()
       drag.onNodeDragStart(evt, node, nodesRef)
     },
-    onNodeDrag: (evt, node) => drag.onNodeDrag(evt, node, nodesRef, setNodes, reactFlowInstance.flowToScreenPosition, reactFlowInstance.getViewport().zoom),
+    onNodeDrag: (evt, node) => {
+      // Update nodesRef with all React Flow nodes (including group nodes from consumer)
+      nodesRef.current = reactFlowInstance.getNodes()
+      return drag.onNodeDrag(evt, node, nodesRef, setNodes, reactFlowInstance.flowToScreenPosition, reactFlowInstance.getViewport().zoom)
+    },
     onNodeDragStop: (evt, node) => {
       // Handle auto-grouping if enabled
       if (opts.enableAutoGrouping) {

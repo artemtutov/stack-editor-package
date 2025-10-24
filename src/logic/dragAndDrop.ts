@@ -43,10 +43,12 @@ function isWithinContainerBounds(
   pointerY: number,
   container: any,
   tolerance: number,
-  blockWidth: number
+  blockWidth: number,
+  allNodes: Node[]
 ): boolean {
-  const containerX = container.position.x
-  const containerY = container.position.y
+  const containerAbsPos = getAbsolutePosition(container, allNodes)
+  const containerX = containerAbsPos.x
+  const containerY = containerAbsPos.y
   const containerWidth = container.data?.width || blockWidth
   const containerHeight = container.data?.height || container.measured?.height || 100
 
@@ -86,7 +88,7 @@ export function calculateDropIndicator(
     // First try to match the start stack if within rectangular bounds
     if (dragStartStackId) {
       const startContainer = containers.find((c: any) => c.data?.stackId === dragStartStackId)
-      if (startContainer && isWithinContainerBounds(pointerX, pointerY, startContainer, xTolerance, blockWidth)) {
+      if (startContainer && isWithinContainerBounds(pointerX, pointerY, startContainer, xTolerance, blockWidth, allNodes)) {
         targetContainer = startContainer
         targetStackId = dragStartStackId
       }
@@ -96,10 +98,11 @@ export function calculateDropIndicator(
     if (!targetContainer) {
       let bestDistance = Infinity
       containers.forEach((container: any) => {
-        if (isWithinContainerBounds(pointerX, pointerY, container, xTolerance, blockWidth)) {
+        if (isWithinContainerBounds(pointerX, pointerY, container, xTolerance, blockWidth, allNodes)) {
           // Calculate distance to container center for tie-breaking
-          const containerCenterX = container.position.x + ((container.data?.width || blockWidth) / 2)
-          const containerCenterY = container.position.y + ((container.data?.height || container.measured?.height || 100) / 2)
+          const containerAbsPos = getAbsolutePosition(container, allNodes)
+          const containerCenterX = containerAbsPos.x + ((container.data?.width || blockWidth) / 2)
+          const containerCenterY = containerAbsPos.y + ((container.data?.height || container.measured?.height || 100) / 2)
           const distance = Math.sqrt(
             Math.pow(pointerX - containerCenterX, 2) + Math.pow(pointerY - containerCenterY, 2)
           )
@@ -165,6 +168,9 @@ export function calculateDropIndicator(
     .filter((n: any) => n.type !== 'stackContainer' && n.data?.stackId === targetStackId && n.id !== draggedNodeId)
     .sort((a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0))
 
+  // Get absolute position of target container (handles grouped containers)
+  const targetContainerAbsPos = getAbsolutePosition(targetContainer, allNodes)
+
   // Calculate insertion point based on absolute Y
   let insertionIndex = stackBlocks.length
   let indicatorAbsY = pointerY
@@ -180,7 +186,7 @@ export function calculateDropIndicator(
         insertionIndex = i
         // When inserting at first position, use container position + header offset
         if (i === 0) {
-          indicatorAbsY = targetContainer.position.y + headerHeight + 4
+          indicatorAbsY = targetContainerAbsPos.y + headerHeight + 4
         } else {
           indicatorAbsY = blockAbsPos.y
         }
@@ -193,12 +199,12 @@ export function calculateDropIndicator(
     }
   } else {
     insertionIndex = 0
-    indicatorAbsY = targetContainer.position.y + headerHeight + 4
+    indicatorAbsY = targetContainerAbsPos.y + headerHeight + 4
   }
 
   // Convert to screen coordinates for indicator
   // Account for 4px padding on each side (blocks are at x: 4 inside container)
-  const containerAbsX = targetContainer.position.x
+  const containerAbsX = targetContainerAbsPos.x
   const containerWidth = (targetContainer as any).measured?.width || (targetContainer.data as any)?.width || blockWidth
   const contentX = containerAbsX + 4
   const contentWidth = containerWidth - 8

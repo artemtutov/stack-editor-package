@@ -11,6 +11,7 @@ The stack editor package now provides **first-class grouping support**:
 - ✅ **Position utilities** - Exported helpers for absolute ↔ relative position conversion
 - ✅ **Nested group support** - Correctly handles groups within groups
 - ✅ **Container grouping** - Stack containers can be grouped too
+- ✅ **Smooth grouped stack interactions** - Blocks in grouped stacks can be dragged out in one operation
 - ✅ **Undo/redo ready** - Emits `block.group` and `block.ungroup` events
 
 ---
@@ -364,6 +365,13 @@ useEffect(() => {
 - ✅ Reload canvas (uses `stackEditor.loadBlocks()`)
 - ✅ Grouped blocks should restore correctly with relative positions
 
+### 5. Test Grouped Stack Interactions
+- ✅ Create a stack inside a group
+- ✅ Drag a block from the grouped stack out of the group → should ungroup in one smooth operation
+- ✅ Drag a block from the grouped stack within the group → should stay grouped
+- ✅ No jump-back or two-step removal needed
+- ✅ Behavior matches solo blocks in groups
+
 ---
 
 ## Troubleshooting
@@ -406,6 +414,16 @@ const relativePos = convertAbsoluteToRelative(absolutePos, groupAbsolutePos);
 
 ---
 
+### Issue: Can't drag block from grouped stack out of group
+
+**Symptom**: Block jumps back to group or requires two-step removal (first from stack, then from group).
+
+**Solution**: This is now fixed in v0.3.0! The auto-grouping logic recognizes stack containers inside groups and allows single-operation removal. Make sure you're using the latest version.
+
+**Technical details**: The `isGroupParent` check now detects both direct group parents AND stack containers that are children of groups, enabling consistent drag behavior across all node types.
+
+---
+
 ## Performance Notes
 
 - ✅ **No extra re-renders**: Grouping uses `loadBlocks()` which is batched
@@ -416,6 +434,8 @@ const relativePos = convertAbsoluteToRelative(absolutePos, groupAbsolutePos);
 
 ## Summary of Benefits
 
+The migration provides not just feature parity, but a **polished user experience** with intuitive interactions:
+
 | Before | After |
 |--------|-------|
 | 200+ lines of glue code | 0 lines (built-in) |
@@ -424,6 +444,7 @@ const relativePos = convertAbsoluteToRelative(absolutePos, groupAbsolutePos);
 | No nested group support | Full nested support |
 | Manual extent management | Automatic |
 | Custom undo/redo logic | Built-in events |
+| Grouped stack removal | Two-step process | Single smooth drag |
 
 ---
 

@@ -75,7 +75,23 @@ Successfully implemented **native grouping support** for the stack-editor-packag
 
 ---
 
-### 5. Type System Updates (`src/types.ts`) ✅
+### 5. Grouped Stack Interaction Improvements ✅
+
+**Extended Auto-Grouping Logic (`src/useStackEditor.tsx`):**
+- Modified `isGroupParent` check to recognize both direct group parents AND stack containers inside groups
+- Blocks in grouped stacks can now be dragged out of the group in a single operation
+- Behavior matches solo nodes perfectly - no special handling needed
+
+**Key Fix**: When AUTO-UNPARENT removes a node from a grouped stack, it now clears both `parentId` and `stackId` to prevent `syncStackContainers` from re-inheriting the group parent.
+
+**User Experience Improvement**:
+- **Before**: Had to first remove from stack (stays in group), then remove from group
+- **After**: Can drag directly out of grouped stack in one smooth motion
+- Interaction feels natural and consistent across all node types
+
+---
+
+### 6. Type System Updates (`src/types.ts`) ✅
 
 **New options:**
 - `enableAutoGrouping?: boolean` - Enable drag-based auto-grouping (default: true)
@@ -92,7 +108,7 @@ Successfully implemented **native grouping support** for the stack-editor-packag
 
 ---
 
-### 6. Exports (`src/index.ts`) ✅
+### 7. Exports (`src/index.ts`) ✅
 
 **Exported grouping utilities:**
 ```typescript
@@ -127,6 +143,14 @@ Consumers can now use these utilities for custom grouping logic.
 5. `updateNodeParent()` API (lines 975, 983)
 
 **Fix**: Added `getAbsolutePosition()` calls before all position conversions
+
+### Bug #7: Grouped stack nodes couldn't leave group
+**Problem**: Auto-grouping logic only recognized direct group parents, not containers in groups
+**Impact**: Blocks in grouped stacks would jump back to group when dragged outside
+**Fix**: Extended `isGroupParent` check + clear `stackId` on ungroup to prevent re-inheritance
+**Locations Fixed**:
+1. `src/useStackEditor.tsx` lines 1307-1313 (isGroupParent check for containers in groups)
+2. `src/useStackEditor.tsx` line 1428 (clear stackId on AUTO-UNPARENT)
 
 ---
 
@@ -179,7 +203,13 @@ Consumers can now use these utilities for custom grouping logic.
    - ✅ Group blocks → save → reload → restores correctly
    - ✅ `parentId`, `extent`, and relative positions preserved
 
-5. **TypeScript**
+5. **Grouped stacks**
+   - ✅ Drag block from grouped stack out of group → auto-unparents in one operation
+   - ✅ Drag block from grouped stack within group → stays grouped
+   - ✅ Behavior matches solo nodes in groups
+   - ✅ No jump-back or two-step removal needed
+
+6. **TypeScript**
    - ✅ No compilation errors
    - ✅ All types correct
    - ✅ Full IntelliSense support
@@ -221,6 +251,7 @@ Consumers can now use these utilities for custom grouping logic.
 | Undo/redo integration | Manual | Built-in events |
 | API methods for grouping | 0 | 3 |
 | Exported utilities | 0 | 5 |
+| Grouped stack interactions | Two-step removal | Single smooth operation |
 
 ---
 
@@ -269,6 +300,17 @@ stackEditor.ungroupNodes(blockIds)
 **Estimated removal**: ~200 lines of glue code
 **Estimated time**: 30 minutes
 
+### Integration Quality
+
+The package now provides a **polished, production-ready experience** with:
+- ✅ Intuitive drag interactions that feel natural
+- ✅ Consistent behavior across all node types (solo blocks, stacked blocks, grouped stacks)
+- ✅ Smooth single-operation workflows (no multi-step removals)
+- ✅ Zero friction integration into Canvas React
+- ✅ No special cases or workarounds needed
+
+**Result**: Seamless integration with a professional user experience out of the box.
+
 ---
 
 ## Future Enhancements
@@ -315,7 +357,9 @@ Version 0.3.0 successfully implements **production-ready native grouping support
 ✅ TypeScript type safety
 ✅ Undo/redo integration
 ✅ Position calculation correctness
+✅ Smooth, intuitive interactions
+✅ Consistent behavior across all node types
 
-The implementation eliminates the need for complex glue code in consuming applications and provides a clean, intuitive API for group management.
+The implementation eliminates the need for complex glue code in consuming applications and provides a clean, intuitive API for group management. With polished interactions and seamless Canvas React integration, the package is ready for production use.
 
 **Status**: Ready for release 🚀

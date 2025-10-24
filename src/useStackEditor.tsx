@@ -1300,15 +1300,23 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
         // AUTO-UNPARENT: Node dragged outside its parent group
         if (!intersectingGroup && node.parentId) {
-          // Only auto-unparent if parent is a GROUP node, not a stack container
+          // Only auto-unparent if parent is a GROUP node, or a stack container inside a group
           const parentNode = allNodesSnapshot.find(n => n.id === node.parentId)
-          const isGroupParent = parentNode && opts.groupNodeTypes?.includes(parentNode.type)
+          const isDirectGroupParent = parentNode && opts.groupNodeTypes?.includes(parentNode.type)
+
+          // Check if parent is a container that's inside a group
+          const isContainerInGroup = parentNode &&
+                                    parentNode.type === 'stackContainer' &&
+                                    parentNode.parentId &&
+                                    allNodesSnapshot.find((n: any) => n.id === parentNode.parentId && opts.groupNodeTypes?.includes(n.type))
+
+          const isGroupParent = isDirectGroupParent || isContainerInGroup
 
           if (!isGroupParent) {
-            // Parent is a stack container or other non-group parent
+            // Parent is neither a group nor a container in a group
             // Skip auto-unparent, fall through to normal drag handling
           } else {
-            // Parent is a group - proceed with auto-unparent
+            // Parent is a group OR container in group - proceed with auto-unparent
             const blocks = getBlocks()
 
             // Handle stack containers specially
@@ -1417,6 +1425,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                     parentId: undefined,
                     extent: undefined,
                     position: absolutePos,
+                    stackId: undefined,  // Clear stackId to prevent syncContainers from re-inheriting group
                   }
                 : b
             )

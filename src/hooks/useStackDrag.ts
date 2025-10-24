@@ -8,7 +8,6 @@ import {
 } from '../logic/dragAndDrop'
 import { ensureInsertionOrder, calculateStackLayout } from '../logic/stackLayout'
 import { assignBlockToStack, nextStackId } from '../logic/stackState'
-import { findIntersectingGroup, convertAbsoluteToRelative, convertRelativeToAbsolute } from '../logic/grouping'
 
 export type UseStackDragOptions = {
   xTolerance: number

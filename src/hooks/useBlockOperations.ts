@@ -314,8 +314,9 @@ export function useBlockOperations(
             newNode,
           ]
 
+          const final = applyLayout(stackId, updatedNodes)
           setTimeout(() => nodeRefsMap.current[newId]?.current?.focus?.(), 50)
-          return updatedNodes
+          return final
         }
 
         const newNode: Node = {

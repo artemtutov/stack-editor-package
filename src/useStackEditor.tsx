@@ -1170,8 +1170,14 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
         const hadOriginalExtent = (node as any).__originalExtent
 
+        // Helper to check if node is in a stack
+        const isNodeInStack = (node: Node) => {
+          const parentNode = allNodesSnapshot.find(n => n.id === node.parentId)
+          return parentNode?.type === 'stackContainer'
+        }
+
         // AUTO-PARENT: Node dropped into group
-        if (intersectingGroup && !node.parentId) {
+        if (intersectingGroup && (!node.parentId || isNodeInStack(node))) {
           const blocks = getBlocks()
 
           // Handle stack containers specially
@@ -1246,9 +1252,12 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
           const blockToGroup = blocks.find(b => b.id === node.id)
 
           if (blockToGroup) {
-            // Use current React Flow position (already updated during drag)
-            const currentRFNode = allNodesSnapshot.find(n => n.id === node.id)
-            const absolutePos = currentRFNode?.position || node.position
+            // Check if block is being extracted from a stack
+            const wasInStack = isNodeInStack(node)
+            const oldStackId = wasInStack ? (blockToGroup as any).stackId : undefined
+
+            // Get absolute position of block (handles parent stack container)
+            const absolutePos = getAbsolutePosition(node, allNodesSnapshot)
             // Get absolute position of group (handles nested groups)
             const groupAbsolutePos = getAbsolutePosition(intersectingGroup, allNodesSnapshot)
             const relativePos = convertAbsoluteToRelative(absolutePos, groupAbsolutePos)
@@ -1260,6 +1269,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                     parentId: intersectingGroup.id,
                     extent: 'parent' as const,
                     position: relativePos,
+                    stackId: undefined, // Remove from stack
                   }
                 : b
             )
@@ -1270,21 +1280,33 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
               const updated = currentNodes.map((rfNode) => {
                 if (rfNode.id === node.id && rfNode.type === 'block') {
                   const updatedBlock = updatedBlocks.find(b => b.id === node.id)!
+                  const newData = {
+                    ...(rfNode.data || {}),
+                    ...updatedBlock,
+                  }
+                  // Remove stackId when extracting from stack
+                  if (wasInStack) {
+                    delete newData.stackId
+                  }
                   return {
                     ...rfNode,
                     parentId: updatedBlock.parentId,
                     extent: updatedBlock.extent as any,
                     position: updatedBlock.position || rfNode.position,
-                    data: {
-                      ...(rfNode.data || {}),
-                      ...updatedBlock,
-                    }
+                    data: newData
                   }
                 }
                 return rfNode
               })
               // Sync containers with ALL nodes (preserves existing containers)
-              return syncContainersWithCallbacks(updated)
+              let synced = syncContainersWithCallbacks(updated)
+
+              // If block was extracted from a stack, reposition remaining blocks
+              if (wasInStack && oldStackId) {
+                synced = applyLayout(oldStackId, synced)
+              }
+
+              return synced
             })
 
             // Emit change event
@@ -1302,7 +1324,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         if (!intersectingGroup && node.parentId) {
           // Only auto-unparent if parent is a GROUP node, or a stack container inside a group
           const parentNode = allNodesSnapshot.find(n => n.id === node.parentId)
-          const isDirectGroupParent = parentNode && opts.groupNodeTypes?.includes(parentNode.type)
+          const isDirectGroupParent = parentNode && parentNode.type && opts.groupNodeTypes?.includes(parentNode.type)
 
           // Check if parent is a container that's inside a group
           const isContainerInGroup = parentNode &&
@@ -1468,7 +1490,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         if (hadOriginalExtent && node.parentId) {
           // Only restore extent for GROUP parents, not stack containers
           const parentNode = allNodesSnapshot.find(n => n.id === node.parentId)
-          const isGroupParent = parentNode && opts.groupNodeTypes?.includes(parentNode.type)
+          const isGroupParent = parentNode && parentNode.type && opts.groupNodeTypes?.includes(parentNode.type)
 
           if (isGroupParent) {
             setNodes((nds) => nds.map((n) => {

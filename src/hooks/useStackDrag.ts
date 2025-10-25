@@ -8,7 +8,6 @@ import {
 } from '../logic/dragAndDrop'
 import { ensureInsertionOrder, calculateStackLayout } from '../logic/stackLayout'
 import { assignBlockToStack, nextStackId } from '../logic/stackState'
-import { getAbsolutePosition, convertAbsoluteToRelative } from '../logic/grouping'
 
 export type UseStackDragOptions = {
   xTolerance: number
@@ -168,17 +167,15 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
               // If target has a group parent, assign dragged node to same group first
               let updatedNodes = nds
               if (targetNode.parentId && !oldNode.parentId) {
-                // Get absolute position of dragged node
-                const draggedAbsPos = getAbsolutePosition(oldNode, nds)
-                // Get absolute position of group
-                const groupNode = nds.find(n => n.id === targetNode.parentId)
-                const groupAbsPos = groupNode ? getAbsolutePosition(groupNode, nds) : { x: 0, y: 0 }
-                // Convert to relative position within group
-                const relativePos = convertAbsoluteToRelative(draggedAbsPos, groupAbsPos)
-
+                // Position dragged node at target's location (they'll stack and get repositioned by layout)
                 updatedNodes = nds.map(n =>
                   n.id === node.id
-                    ? { ...n, parentId: targetNode.parentId, extent: 'parent' as const, position: relativePos }
+                    ? {
+                        ...n,
+                        parentId: targetNode.parentId,
+                        extent: 'parent' as const,
+                        position: { x: targetNode.position.x, y: targetNode.position.y }
+                      }
                     : n
                 )
               }

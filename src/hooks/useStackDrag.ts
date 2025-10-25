@@ -8,6 +8,7 @@ import {
 } from '../logic/dragAndDrop'
 import { ensureInsertionOrder, calculateStackLayout } from '../logic/stackLayout'
 import { assignBlockToStack, nextStackId } from '../logic/stackState'
+import { getAbsolutePosition, convertAbsoluteToRelative } from '../logic/grouping'
 
 export type UseStackDragOptions = {
   xTolerance: number
@@ -164,8 +165,26 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
             if (targetNode && !targetNode.data?.stackId) {
               const newStackId = nextStackId(nds)
 
+              // If target has a group parent, assign dragged node to same group first
+              let updatedNodes = nds
+              if (targetNode.parentId && !oldNode.parentId) {
+                // Get absolute position of dragged node
+                const draggedAbsPos = getAbsolutePosition(oldNode, nds)
+                // Get absolute position of group
+                const groupNode = nds.find(n => n.id === targetNode.parentId)
+                const groupAbsPos = groupNode ? getAbsolutePosition(groupNode, nds) : { x: 0, y: 0 }
+                // Convert to relative position within group
+                const relativePos = convertAbsoluteToRelative(draggedAbsPos, groupAbsPos)
+
+                updatedNodes = nds.map(n =>
+                  n.id === node.id
+                    ? { ...n, parentId: targetNode.parentId, extent: 'parent' as const, position: relativePos }
+                    : n
+                )
+              }
+
               // Assign both blocks to the new stack
-              let updatedNodes = assignBlockToStack(node.id, newStackId, nds)
+              updatedNodes = assignBlockToStack(node.id, newStackId, updatedNodes)
               updatedNodes = assignBlockToStack(dropInfo.targetNodeId, newStackId, updatedNodes)
 
               // Determine insertion order based on Y position

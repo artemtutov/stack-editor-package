@@ -1177,7 +1177,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         }
 
         // AUTO-PARENT: Node dropped into group
-        if (intersectingGroup && (!node.parentId || isNodeInStack(node))) {
+        // Skip if drop indicator is showing (user is trying to attach to a stack/solo node)
+        if (intersectingGroup && (!node.parentId || isNodeInStack(node)) && !drag.dropIndicator.show) {
           const blocks = getBlocks()
 
           // Handle stack containers specially

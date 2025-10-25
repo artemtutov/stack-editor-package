@@ -166,7 +166,9 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
 
               // If target has a group parent, assign dragged node to same group first
               let updatedNodes = nds
-              if (targetNode.parentId && !oldNode.parentId) {
+              const isOldNodeInStack = oldNode.parentId && nds.find(n => n.id === oldNode.parentId)?.type === 'stackContainer'
+
+              if (targetNode.parentId && (!oldNode.parentId || isOldNodeInStack)) {
                 // Position dragged node at target's location (they'll stack and get repositioned by layout)
                 updatedNodes = nds.map(n =>
                   n.id === node.id

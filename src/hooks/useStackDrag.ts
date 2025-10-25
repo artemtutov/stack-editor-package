@@ -164,18 +164,19 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
             if (targetNode && !targetNode.data?.stackId) {
               const newStackId = nextStackId(nds)
 
-              // If target has a group parent, assign dragged node to same group first
+              // Position dragged node at target's location if it's from a stack or if target is grouped
               let updatedNodes = nds
               const isOldNodeInStack = oldNode.parentId && nds.find(n => n.id === oldNode.parentId)?.type === 'stackContainer'
 
-              if (targetNode.parentId && (!oldNode.parentId || isOldNodeInStack)) {
-                // Position dragged node at target's location (they'll stack and get repositioned by layout)
+              // Always position dragged node at target if it's from a stack (to use target's absolute position)
+              // OR assign to same group parent if target is grouped
+              if (isOldNodeInStack || targetNode.parentId) {
                 updatedNodes = nds.map(n =>
                   n.id === node.id
                     ? {
                         ...n,
-                        parentId: targetNode.parentId,
-                        extent: 'parent' as const,
+                        parentId: targetNode.parentId, // undefined if target not grouped
+                        extent: targetNode.parentId ? ('parent' as const) : undefined,
                         position: { x: targetNode.position.x, y: targetNode.position.y }
                       }
                     : n

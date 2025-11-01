@@ -386,6 +386,13 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
           if (container?.position) {
             block.containerPosition = { x: container.position.x, y: container.position.y }
           }
+          // Save container grouping info (for grouped containers)
+          if (container?.parentId) {
+            block.containerParentId = container.parentId
+          }
+          if (container?.extent === 'parent') {
+            block.containerExtent = container.extent
+          }
         }
 
         return block
@@ -504,27 +511,37 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       return createEmptyPayload()
     }
 
-    // 1. Extract container positions from blocks
-    const containerPositions = new Map<string, { x: number; y: number }>()
+    // 1. Extract container data from blocks
+    const containerData = new Map<string, { position: { x: number; y: number }; parentId?: string; extent?: 'parent' }>()
     blocks.forEach(blk => {
       if (blk.containerPosition && blk.stackId) {
-        containerPositions.set(blk.stackId, blk.containerPosition)
+        containerData.set(blk.stackId, {
+          position: blk.containerPosition,
+          parentId: blk.containerParentId,
+          extent: blk.containerExtent,
+        })
       }
     })
 
-    // 2. Pre-create container nodes with saved positions
-    const preCreatedContainers: Node[] = Array.from(containerPositions).map(([id, pos]) => ({
-      id,
-      type: 'stackContainer',
-      position: pos,
-      style: { width: opts.blockWidth + 8 },
-      data: {
-        stackId: id,
-        width: opts.blockWidth + 8,
-        manualWidth: undefined,
-        isDragging: false,
-      },
-    }))
+    // 2. Pre-create container nodes with saved positions and grouping info
+    const preCreatedContainers: Node[] = Array.from(containerData).map(([id, data]) => {
+      const container: Node = {
+        id,
+        type: 'stackContainer',
+        position: data.position,
+        style: { width: opts.blockWidth + 8 },
+        data: {
+          stackId: id,
+          width: opts.blockWidth + 8,
+          manualWidth: undefined,
+          isDragging: false,
+        },
+      }
+      // Restore container grouping if it was grouped
+      if (data.parentId) container.parentId = data.parentId
+      if (data.extent) container.extent = data.extent
+      return container
+    })
 
     // 3. Create nodes from blocks
     const created: Node[] = blocks.map((blk, idx) => {

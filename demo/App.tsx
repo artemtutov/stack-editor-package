@@ -49,6 +49,7 @@ function GroupNode({ data }: NodeProps) {
 function StackDemo() {
   // State for group node position (so it can be dragged)
   const [groupPosition, setGroupPosition] = useState({ x: 350, y: 200 })
+  const [savedState, setSavedState] = useState<any>(null)
 
   const stackEditor = useStackEditor({
     initialBlocks: [
@@ -80,6 +81,26 @@ function StackDemo() {
         extent: 'parent'
       },
 
+      // Blocks in a GROUPED STACK (testing container grouping persistence)
+      {
+        id: 'grouped-stack-block-1',
+        html: '<p>🎯 I am in a grouped stack!</p>',
+        position: { x: 20, y: 60 }, // relative to container
+        stackId: 'grouped-stack-container',
+        containerPosition: { x: 600, y: 60 }, // container position relative to group
+        containerParentId: 'test-group', // Container is grouped!
+        containerExtent: 'parent'
+      },
+      {
+        id: 'grouped-stack-block-2',
+        html: '<p>🎯 Me too - save & reload to test!</p>',
+        position: { x: 20, y: 130 }, // relative to container
+        stackId: 'grouped-stack-container',
+        containerPosition: { x: 600, y: 60 },
+        containerParentId: 'test-group',
+        containerExtent: 'parent'
+      },
+
       // Another block far away for general testing
       {
         id: 'block-far',
@@ -92,6 +113,22 @@ function StackDemo() {
       groupNodeTypes: ['group'], // Recognize 'group' type nodes
     }
   })
+
+  // Save current state
+  const handleSave = useCallback(() => {
+    const blocks = stackEditor.getBlocks()
+    setSavedState({ blocks, groupPosition })
+    console.log('💾 Saved state:', { blocks, groupPosition })
+  }, [stackEditor, groupPosition])
+
+  // Load saved state
+  const handleLoad = useCallback(() => {
+    if (savedState) {
+      setGroupPosition(savedState.groupPosition)
+      stackEditor.loadBlocks(savedState.blocks)
+      console.log('📂 Loaded state:', savedState)
+    }
+  }, [stackEditor, savedState])
 
   // Combine stack editor nodes with our test group node
   const allNodes = useMemo(() => {
@@ -160,7 +197,7 @@ function StackDemo() {
         maxWidth: '600px',
       }}>
         <div style={{ fontSize: '16px', fontWeight: '600', color: '#6229e5', marginBottom: '8px' }}>
-          🎯 Testing Auto-Grouping (v0.3.0)
+          🎯 Testing Auto-Grouping & Persistence (v0.3.1)
         </div>
         <div style={{ fontSize: '13px', color: '#666', lineHeight: '1.6' }}>
           <div>✨ <strong>Drag blocks into</strong> the dashed group → they auto-parent</div>
@@ -169,6 +206,44 @@ function StackDemo() {
           <div>✨ <strong>Drag the group itself</strong> → grouped blocks move with it!</div>
           <div style={{ marginTop: '8px', fontSize: '12px', color: '#999' }}>
             💡 Press <kbd>Enter</kbd> to create new blocks. Try creating stacks inside the group!
+          </div>
+          <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
+            <button
+              onClick={handleSave}
+              style={{
+                padding: '8px 16px',
+                background: '#6229e5',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: '600',
+              }}
+            >
+              💾 Save State
+            </button>
+            <button
+              onClick={handleLoad}
+              disabled={!savedState}
+              style={{
+                padding: '8px 16px',
+                background: savedState ? '#10b981' : '#d1d5db',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: savedState ? 'pointer' : 'not-allowed',
+                fontSize: '13px',
+                fontWeight: '600',
+              }}
+            >
+              📂 Load State
+            </button>
+            {savedState && (
+              <span style={{ fontSize: '12px', color: '#10b981', alignSelf: 'center', marginLeft: '4px' }}>
+                ✓ State saved
+              </span>
+            )}
           </div>
         </div>
       </div>

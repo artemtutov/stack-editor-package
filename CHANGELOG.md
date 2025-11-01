@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2025-11-01
+
+### Fixed
+- Grouped stack containers now preserve their parent relationships on save/reload
+- Added `containerParentId` and `containerExtent` fields to `InitialBlock` type
+- Updated `getBlocks()` to save container grouping information
+- Updated `loadBlocks()` to restore container grouping information
+- Added test case in demo for grouped stack persistence
+
+## [0.3.1] - 2025-10-XX
+
+### Fixed
+- iOS double-tap fixes for fullscreen toolbar buttons
+- Flicker when creating stack from grouped solo node
+- Node positioning from stacks at target location even when target is not grouped
+- Allow nodes from stacks to inherit group parent when attaching to grouped solo nodes
+
+## [0.3.0] - 2025-10-XX
+
 ### Added
 - TipTap rich text editing integration
 - Fullscreen editor mode with deep-sync block diffing

@@ -1,6 +1,6 @@
 {
   "name": "@artemtutov/stack-editor-react",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A Notion-style stacked block editor built on React Flow",
   "type": "module",
   "publishConfig": {

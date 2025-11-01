@@ -48,6 +48,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       showTooltip = true,
       shortcutKeys,
       "aria-label": ariaLabel,
+      onMouseDown,
+      onTouchEnd,
+      style,
       ...props
     },
     ref
@@ -57,12 +60,33 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       [shortcutKeys]
     )
 
+    // iOS fix: Prevent focus stealing and force click on touch
+    const handleMouseDown = React.useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault()
+      onMouseDown?.(e)
+    }, [onMouseDown])
+
+    const handleTouchEnd = React.useCallback((e: React.TouchEvent<HTMLButtonElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      e.currentTarget.click()
+      onTouchEnd?.(e)
+    }, [onTouchEnd])
+
+    const mergedStyle = React.useMemo(() => ({
+      touchAction: 'manipulation' as const,
+      ...style,
+    }), [style])
+
     if (!tooltip || !showTooltip) {
       return (
         <button
           className={cn("tiptap-button", className)}
           ref={ref}
           aria-label={ariaLabel}
+          onMouseDown={handleMouseDown}
+          onTouchEnd={handleTouchEnd}
+          style={mergedStyle}
           {...props}
         >
           {children}
@@ -76,6 +100,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           className={cn("tiptap-button", className)}
           ref={ref}
           aria-label={ariaLabel}
+          onMouseDown={handleMouseDown}
+          onTouchEnd={handleTouchEnd}
+          style={mergedStyle}
           {...props}
         >
           {children}

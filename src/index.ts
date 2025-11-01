@@ -1,6 +1,12 @@
+// Initialize logging system
+import './utils/setupLogger'
+
 // Main exports for @stack-editor/react package
 export { default as StackEditor } from './StackEditor'
 export { default as useStackEditor } from './useStackEditor'
+
+// Export logging control functions
+export { enableLogging, disableLogging, isLoggingEnabled } from './utils/setupLogger'
 
 // Export types
 export type {

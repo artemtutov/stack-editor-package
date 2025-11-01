@@ -27,6 +27,7 @@ import { updateBottomNodeFlags, getStackBlocks } from './logic/stackLayout'
 import { sanitizeAndSave } from './utils/sanitizeHTML'
 import { createEmptyPayload, htmlToJson, jsonToHtml, ensureJsonContent, CURRENT_SCHEMA_VERSION } from './editor/richText'
 import { getAbsolutePosition, convertAbsoluteToRelative, convertRelativeToAbsolute, findIntersectingGroup } from './logic/grouping'
+import { enableLogging, disableLogging } from './utils/setupLogger'
 
 // Default options
 const DEFAULTS: Required<StackEditorOptions> = {
@@ -41,6 +42,7 @@ const DEFAULTS: Required<StackEditorOptions> = {
   xTolerance: 10,
   yHysteresis: 3,
   indicatorStabilityPx: 0.5,
+  enableLogging: false,
 }
 
 /**
@@ -100,6 +102,16 @@ const DEFAULTS: Required<StackEditorOptions> = {
  */
 export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResult {
   const opts = { ...DEFAULTS, ...(args?.options || {}) }
+  const callbacks = args?.callbacks || {}
+
+  // Handle logging toggle
+  useEffect(() => {
+    if (opts.enableLogging) {
+      enableLogging()
+    } else {
+      disableLogging()
+    }
+  }, [opts.enableLogging])
 
   // Core state
   const [nodes, setNodesBase, onNodesChangeBase] = useNodesState<Node>([])
@@ -684,16 +696,25 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
                 registerStackExpand: (stackId: string, openFn: () => void) => {
                   stackExpandCallbacksRef.current.set(stackId, openFn)
                 },
+                onToggleSidebar: callbacks.onToggleSidebar,
+                isSidebarOpen: callbacks.isSidebarOpen,
               },
             }
           : n
       )
     },
-    [onContainerResizeStart, onContainerResize, onContainerResizeEnd, blockOps]
+    [onContainerResizeStart, onContainerResize, onContainerResizeEnd, blockOps, callbacks.onToggleSidebar, callbacks.isSidebarOpen]
   )
 
   // Populate ref for use in early callbacks
   injectCallbacksRef.current = injectContainerCallbacks
+
+  // Force callback re-injection when SIDEBAR callbacks change
+  useEffect(() => {
+    if (nodesRef.current.length > 0) {
+      setNodesBase(prev => injectCallbacksRef.current?.(prev) ?? prev)
+    }
+  }, [callbacks.isSidebarOpen, callbacks.onToggleSidebar, setNodesBase])
 
   // Wrapped setNodes that automatically injects callbacks
   const setNodes = useCallback(

@@ -53,6 +53,12 @@ export type StackEditorOptions = {
   xTolerance?: number // px: horizontal tolerance to consider a stack target
   yHysteresis?: number // px: vertical band around midlines to reduce flicker
   indicatorStabilityPx?: number // px: minimal delta to update overlay
+  enableLogging?: boolean // Enable debug logging (default: false)
+}
+
+export type StackEditorCallbacks = {
+  onToggleSidebar?: () => void // Callback to toggle sidebar in fullscreen mode
+  isSidebarOpen?: boolean // Whether the sidebar is currently open
 }
 
 export type InitialBlock = {
@@ -71,6 +77,7 @@ export type StackEditorValue = InitialBlock[]
 export type StackEditorHookArgs = {
   initialBlocks?: StackEditorValue
   options?: StackEditorOptions
+  callbacks?: StackEditorCallbacks
 }
 
 // Snapshot version for future compatibility

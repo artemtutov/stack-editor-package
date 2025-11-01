@@ -28,6 +28,8 @@ type FullscreenStackEditorProps = {
   blocks: Array<{ id: string; content: RichTextPayload }>
   onCancel: () => void
   onSave: (blocks: Array<{ id?: string; content: RichTextPayload }>) => void
+  onToggleSidebar?: () => void
+  isSidebarOpen?: boolean
 }
 
 const FALLBACK_DOC: JSONContent = {
@@ -40,7 +42,7 @@ const FALLBACK_DOC: JSONContent = {
   ],
 }
 
-export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave }: FullscreenStackEditorProps) {
+export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave, onToggleSidebar, isSidebarOpen }: FullscreenStackEditorProps) {
   const isMobile = useIsMobile(480)
   const { doc } = useMemo(() => blocksToDoc(blocks), [blocks])
   const extensions = useMemo(() => createEditorExtensions({
@@ -199,7 +201,7 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
           <>
             <Toolbar variant="fixed" className="tt-toolbar tt-toolbar-top" aria-label="Fullscreen editor top toolbar" data-toolbar-position="top">
               <ToolbarGroup>
-                <Button type="button" data-style="ghost" aria-label="Menu">
+                <Button type="button" data-style="ghost" aria-label="Menu" onClick={onToggleSidebar}>
                   <MenuIcon className="tiptap-button-icon" />
                 </Button>
               </ToolbarGroup>
@@ -220,7 +222,7 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
           <>
             <Toolbar variant="fixed" className="tt-toolbar" aria-label="Fullscreen editor toolbar">
               <ToolbarGroup>
-                <Button type="button" data-style="ghost" aria-label="Menu">
+                <Button type="button" data-style="ghost" aria-label="Menu" onClick={onToggleSidebar}>
                   <MenuIcon className="tiptap-button-icon" />
                 </Button>
               </ToolbarGroup>

@@ -5,9 +5,10 @@ export type FullscreenModalProps = {
   onClose: () => void
   title?: string
   children: React.ReactNode
+  isSidebarOpen?: boolean
 }
 
-export default function FullscreenModal({ isOpen, onClose, children }: FullscreenModalProps) {
+export default function FullscreenModal({ isOpen, onClose, children, isSidebarOpen }: FullscreenModalProps) {
   if (!isOpen) return null
 
   const fullscreen = (
@@ -15,10 +16,10 @@ export default function FullscreenModal({ isOpen, onClose, children }: Fullscree
       style={{
         position: 'fixed',
         top: 0,
-        left: 0,
+        left: isSidebarOpen ? '300px' : 0,
         right: 0,
         bottom: 0,
-        width: '100vw',
+        width: isSidebarOpen ? 'calc(100vw - 300px)' : '100vw',
         height: '100vh',
         backgroundColor: '#ffffff',
         zIndex: 9999,

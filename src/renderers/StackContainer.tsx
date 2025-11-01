@@ -20,6 +20,8 @@ type Props = {
     getStackBlocks?: () => any[]
     replaceStackContent?: (stackId: string, blocks: Array<{ id?: string; content: RichTextPayload }>) => void
     registerStackExpand?: (stackId: string, openFn: () => void) => void
+    onToggleSidebar?: () => void
+    isSidebarOpen?: boolean
   }
   selected?: boolean
 }
@@ -83,7 +85,12 @@ export default function StackContainer({ id, data, selected }: Props) {
 
   return (
     <>
-      <FullscreenModal isOpen={!!fullscreenState} onClose={handleCancelFullscreen} title="Stack">
+      <FullscreenModal
+        isOpen={!!fullscreenState}
+        onClose={handleCancelFullscreen}
+        title="Stack"
+        isSidebarOpen={data.isSidebarOpen}
+      >
         {fullscreenState && LazyFullscreenStackEditor ? (
           <Suspense fallback={<div style={{ padding: 24 }}>Loading editor…</div>}>
             <LazyFullscreenStackEditor
@@ -91,6 +98,8 @@ export default function StackContainer({ id, data, selected }: Props) {
               blocks={fullscreenState.blocks}
               onCancel={handleCancelFullscreen}
               onSave={handleSaveFullscreen}
+              onToggleSidebar={data.onToggleSidebar}
+              isSidebarOpen={data.isSidebarOpen}
             />
           </Suspense>
         ) : null}
@@ -189,6 +198,8 @@ export default function StackContainer({ id, data, selected }: Props) {
             e.stopPropagation()
             handleOpenFullscreen()
           }}
+          onMouseDown={(e) => e.preventDefault()}
+          onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.click(); }}
           style={{
             background: 'transparent',
             border: 'none',
@@ -202,6 +213,7 @@ export default function StackContainer({ id, data, selected }: Props) {
             fontSize: '16px',
             marginRight: '8px',
             transition: 'background-color 0.15s',
+            touchAction: 'manipulation',
           }}
           onMouseEnter={async (e) => {
             e.currentTarget.style.backgroundColor = '#f3f4f6'

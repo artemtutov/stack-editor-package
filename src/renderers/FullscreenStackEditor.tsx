@@ -156,7 +156,7 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
       <ToolbarGroup>
         <MarkButton type="code" />
         <CodeBlockButton />
-        <ColorHighlightButton />
+        <ColorHighlightButton highlightColor="var(--tt-color-highlight-yellow)" />
         <LinkPopover />
         <BlockquoteButton />
         <Button

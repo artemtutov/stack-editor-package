@@ -208,7 +208,7 @@ export default function StackContainer({ id, data, selected }: Props) {
             cursor: 'pointer',
             padding: '8px',
             borderRadius: '4px',
-            display: 'none',
+            display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: '#666',

@@ -18,6 +18,9 @@ import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
 import { Button } from "@/components/tiptap-ui-primitive/button"
 import { Badge } from "@/components/tiptap-ui-primitive/badge"
 
+// --- Icons ---
+import { HighlighterIcon } from "@/components/tiptap-icons/highlighter-icon"
+
 // --- Styles ---
 import "@/components/tiptap-ui/color-highlight-button/color-highlight-button.scss"
 
@@ -124,12 +127,7 @@ export const ColorHighlightButton = React.forwardRef<
       >
         {children ?? (
           <>
-            <span
-              className="tiptap-button-highlight"
-              style={
-                { "--highlight-color": highlightColor } as React.CSSProperties
-              }
-            />
+            <HighlighterIcon className="tiptap-button-icon" />
             {text && <span className="tiptap-button-text">{text}</span>}
             {showShortcut && (
               <ColorHighlightShortcutBadge shortcutKeys={shortcutKeys} />

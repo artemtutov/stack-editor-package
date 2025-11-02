@@ -1079,6 +1079,31 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
     loadBlocks(updatedBlocks)
 
+    // Also group related stack containers
+    const selectedStackIds = new Set(
+      blocks
+        .filter(b => nodeIds.includes(b.id!) && b.stackId)
+        .map(b => b.stackId!)
+    )
+
+    if (selectedStackIds.size > 0) {
+      const containerIds = Array.from(selectedStackIds)
+      setNodes(nds => nds.map(n => {
+        if (containerIds.includes(n.id)) {
+          const containerAbsPos = getAbsolutePosition(n, allNodesSnapshot)
+          const relativePos = convertAbsoluteToRelative(containerAbsPos, groupAbsolutePos)
+
+          return {
+            ...n,
+            parentId: parentGroupId,
+            extent: 'parent' as const,
+            position: relativePos
+          }
+        }
+        return n
+      }))
+    }
+
     // Emit change event for each grouped node
     nodeIds.forEach(nodeId => {
       emitChange({
@@ -1086,7 +1111,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         blockId: nodeId,
       })
     })
-  }, [getBlocks, loadBlocks, reactFlowInstance, emitChange])
+  }, [getBlocks, loadBlocks, reactFlowInstance, emitChange, setNodes])
 
   // Ungroup nodes from their parent
   const ungroupNodes = useCallback((nodeIds: string[]) => {
@@ -1129,17 +1154,40 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   // Delete a group and ungroup its children
   const deleteGroup = useCallback((groupId: string) => {
     const blocks = getBlocks()
+    const allNodesSnapshot = reactFlowInstance.getNodes()
 
-    // Find all child blocks with this parent
+    // Find ALL children (blocks and containers)
     const childBlockIds = blocks
       .filter(block => block.parentId === groupId)
       .map(block => block.id!)
       .filter(id => id !== undefined)
 
-    // Ungroup children if any exist
+    const childContainerIds = allNodesSnapshot
+      .filter(n => n.type === 'stackContainer' && n.parentId === groupId)
+      .map(n => n.id)
+
+    // Step 1: Ungroup blocks (converts positions, clears parentId)
     if (childBlockIds.length > 0) {
       ungroupNodes(childBlockIds)
     }
+
+    // Step 2: In SAME setNodes call, delete group and ungroup containers
+    setNodes(nds => nds
+      .filter(n => n.id !== groupId)  // Remove group node
+      .map(n => {
+        // Ungroup containers
+        if (childContainerIds.includes(n.id)) {
+          const absolutePos = getAbsolutePosition(n, allNodesSnapshot)
+          return {
+            ...n,
+            parentId: undefined,
+            extent: undefined,
+            position: absolutePos
+          }
+        }
+        return n
+      })
+    )
 
     // Emit delete event for the group itself
     emitChange({
@@ -1149,7 +1197,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
     // Return the ungrouped block IDs for consumers to know what was affected
     return childBlockIds
-  }, [getBlocks, ungroupNodes, emitChange])
+  }, [getBlocks, ungroupNodes, emitChange, reactFlowInstance, setNodes])
 
   // Overlays
   const overlays = (

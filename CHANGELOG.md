@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2025-11-02
+
+### Fixed
+- `groupNodes()` now automatically groups related stack containers when grouping blocks
+- `deleteGroup()` now atomically deletes group node and ungroups containers to prevent "measured of undefined" errors
+- Eliminated transient invalid state during ungrouping where nodes referenced deleted parents
+
 ## [0.3.3] - 2025-11-02
 
 ### Added

@@ -18,7 +18,8 @@ export default function DropIndicator({ position, canvasPosition, show }: Props)
         zIndex: 9999,
       }}
     >
-      <div style={{
+      {/* Debug coordinates */}
+      {/* <div style={{
         position: 'absolute',
         top: '-20px',
         left: '0',
@@ -31,7 +32,7 @@ export default function DropIndicator({ position, canvasPosition, show }: Props)
         whiteSpace: 'nowrap',
       }}>
         x: {Math.round(canvasPosition.x)}, y: {Math.round(canvasPosition.y)}
-      </div>
+      </div> */}
     </div>
   )
 }

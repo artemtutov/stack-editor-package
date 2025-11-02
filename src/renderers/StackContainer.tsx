@@ -156,11 +156,11 @@ export default function StackContainer({ id, data, selected }: Props) {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 9,
+            gap: 10,
             opacity: 1,
             pointerEvents: 'auto',
             cursor: 'grab',
-            padding: '8px 8px 8px 13px',
+            padding: '8px 8px 8px 14px',
             borderRadius: 3,
             transition: 'all 0.15s ease',
             userSelect: 'none',

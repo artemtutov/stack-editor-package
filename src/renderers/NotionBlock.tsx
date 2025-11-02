@@ -151,7 +151,7 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
   return (
     <div className="notion-block-wrapper" style={{ width: '100%', position: 'relative' }}>
       {/* Debug coordinates - show absolute position */}
-      {selected && (
+      {/* {selected && (
         <div style={{
           position: 'absolute',
           top: '-18px',
@@ -167,7 +167,7 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
         }}>
           abs: x: {Math.round(absolutePos.x)}, y: {Math.round(absolutePos.y)}
         </div>
-      )}
+      )} */}
       <div
         ref={blockRef}
         className={`notion-block ${isFocused ? 'focused' : ''} ${selected ? 'selected' : ''} ${

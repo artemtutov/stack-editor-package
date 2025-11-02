@@ -111,12 +111,13 @@ export default function StackContainer({ id, data, selected }: Props) {
           width: '100%',
           height: '100%',
           background: 'white',
-          border: selected ? '2px solid rgba(35, 131, 226, 1)' : '1px solid #d1d5db',
+          outline: selected ? '2px solid rgba(35, 131, 226, 1)' : '1px solid #d1d5db',
+          outlineOffset: '0px',
         borderRadius: 4,
         boxShadow: 'none',
         padding: 0,
         pointerEvents: 'auto',
-        transition: 'box-shadow 0.2s, border 0.2s',
+        transition: 'box-shadow 0.2s, outline 0.2s',
         cursor: 'grab',
         position: 'relative',
       }}
@@ -155,11 +156,11 @@ export default function StackContainer({ id, data, selected }: Props) {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
+            gap: 9,
             opacity: 1,
             pointerEvents: 'auto',
             cursor: 'grab',
-            padding: '8px 8px 8px 10px',
+            padding: '8px 8px 8px 13px',
             borderRadius: 3,
             transition: 'all 0.15s ease',
             userSelect: 'none',
@@ -181,6 +182,7 @@ export default function StackContainer({ id, data, selected }: Props) {
           <span
             style={{
               fontSize: 12,
+              lineHeight: 1,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
               color: '#9ca3af',

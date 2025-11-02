@@ -194,21 +194,21 @@ export function useBlockOperations(
         return updated
       })
 
-      // Use double RAF to ensure prev editor is mounted and has new JSON
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const handle = nodeRefsMap.current[prevId]?.current
-          if (handle?.setCaretAt) {
-            // Position at the merge point (after prev's inline text, before current's text)
-            // +1 to account for the paragraph opening tag in ProseMirror's position system
-            handle.setCaretAt(prevInlineLength + 1)
-          } else if (handle?.setCaretToEnd) {
-            handle.setCaretToEnd()
-          } else {
-            handle?.focus?.()
-          }
-        })
-      })
+      // Use setTimeout to ensure prev editor is mounted and has new JSON
+      // This matches the timing pattern used in other operations (Enter, split, etc.)
+      // and prevents mobile keyboards from dismissing due to focus gaps
+      setTimeout(() => {
+        const handle = nodeRefsMap.current[prevId]?.current
+        if (handle?.setCaretAt) {
+          // Position at the merge point (after prev's inline text, before current's text)
+          // +1 to account for the paragraph opening tag in ProseMirror's position system
+          handle.setCaretAt(prevInlineLength + 1)
+        } else if (handle?.setCaretToEnd) {
+          handle.setCaretToEnd()
+        } else {
+          handle?.focus?.()
+        }
+      }, 50)
     },
     [nodesRef, setNodes, nodeRefsMap, applyLayout, syncContainers]
   )

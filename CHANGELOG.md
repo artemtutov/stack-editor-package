@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2025-11-02
+
+### Added
+- Added `deleteGroup(groupId: string)` API for ungrouping and deleting groups
+- Returns array of ungrouped block IDs for undo/redo coordination
+- Emits `group.delete` event for group deletion
+- Added `groupId` field to `ChangeEvent` type
+
 ## [0.3.2] - 2025-11-01
 
 ### Fixed

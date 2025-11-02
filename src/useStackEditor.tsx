@@ -1126,6 +1126,31 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     })
   }, [getBlocks, loadBlocks, reactFlowInstance, emitChange])
 
+  // Delete a group and ungroup its children
+  const deleteGroup = useCallback((groupId: string) => {
+    const blocks = getBlocks()
+
+    // Find all child blocks with this parent
+    const childBlockIds = blocks
+      .filter(block => block.parentId === groupId)
+      .map(block => block.id!)
+      .filter(id => id !== undefined)
+
+    // Ungroup children if any exist
+    if (childBlockIds.length > 0) {
+      ungroupNodes(childBlockIds)
+    }
+
+    // Emit delete event for the group itself
+    emitChange({
+      type: 'group.delete',
+      groupId,
+    })
+
+    // Return the ungrouped block IDs for consumers to know what was affected
+    return childBlockIds
+  }, [getBlocks, ungroupNodes, emitChange])
+
   // Overlays
   const overlays = (
     <>
@@ -1563,6 +1588,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     // Grouping APIs
     groupNodes,
     ungroupNodes,
+    deleteGroup,
     updateNodeParent,
     overlays,
     // History/undo-redo APIs

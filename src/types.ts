@@ -102,11 +102,13 @@ export type ChangeEventType =
   | 'content.commit'
   | 'stack.expand'
   | 'stack.collapse'
+  | 'group.delete'
 
 export type ChangeEvent = {
   type: ChangeEventType
   blockId?: string
   stackId?: string
+  groupId?: string
 }
 
 export type ChangeListener = (event: ChangeEvent) => void
@@ -131,6 +133,7 @@ export type StackEditorHookResult = {
   // Grouping APIs
   groupNodes: (nodeIds: string[], parentGroupId: string) => void
   ungroupNodes: (nodeIds: string[]) => void
+  deleteGroup: (groupId: string) => string[]
   updateNodeParent: (nodeId: string, parentId?: string, extent?: 'parent') => void
   // overlays to render alongside ReactFlow
   overlays: React.ReactNode

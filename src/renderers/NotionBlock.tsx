@@ -175,6 +175,7 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
         }`}
         style={{
           paddingLeft: '0px',
+          maxWidth: '600px',
         }}
         onPointerDown={(event) => {
           const target = event.target as HTMLElement

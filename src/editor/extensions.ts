@@ -46,6 +46,9 @@ export function createEditorExtensions(options?: ExtensionFactoryOptions): Exten
       codeBlock: false,
       // Disable default Document if using single-block schema
       document: singleBlock ? false : undefined,
+      // Disable Link and Underline to use explicit imports below with custom config
+      link: false,
+      underline: false,
     }),
     // Add TaskList/TaskItem when requested
     ...(includeTasks ? [TaskList, TaskItem.configure({ nested: false })] : []),

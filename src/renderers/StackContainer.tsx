@@ -195,7 +195,7 @@ export default function StackContainer({ id, data, selected }: Props) {
         </div>
 
         {/* Maximize button */}
-        <button
+        {/* <button
           onClick={(e) => {
             e.stopPropagation()
             handleOpenFullscreen()
@@ -228,7 +228,7 @@ export default function StackContainer({ id, data, selected }: Props) {
           title="Maximize"
         >
           ⛶
-        </button>
+        </button> */}
       </div>
       </div>
     </>

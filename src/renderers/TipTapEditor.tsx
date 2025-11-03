@@ -34,7 +34,7 @@ export type TipTapEditorProps = {
   autoFocus?: boolean
   onContentUpdate: (payload: RichTextPayload) => void
   onContentCommit?: () => void  // Called when editing completes (e.g., on blur)
-  createBlockBelow: (initialContent?: RichTextPayload) => void
+  createBlockBelow: (initialContent?: RichTextPayload, isEmptyBlock?: boolean) => void
   createMultipleBlocksBelow?: (payloads: RichTextPayload[]) => void
   mergeBlockUp: (currentContent?: RichTextPayload) => void
   focusPrevious: () => void
@@ -94,7 +94,7 @@ export default function TipTapEditor({
     () => [
       ...baseExtensions,
       CanvasKeymap.configure({
-        onEnterBelow: (content) => createBlockBelow(content),
+        onEnterBelow: (content, isEmptyBlock) => createBlockBelow(content, isEmptyBlock),
         onMergeUp: (currentContent) => mergeBlockUp(currentContent),
         onFocusPrev: focusPrevious,
         onFocusNext: focusNext,

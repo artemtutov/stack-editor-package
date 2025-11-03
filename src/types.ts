@@ -26,7 +26,7 @@ export type BlockData = {
   // callbacks populated by the hook; included here for convenience typing
   onContentUpdate?: (payload: RichTextPayload) => void
   onContentCommit?: () => void  // Called when content editing completes (e.g., on blur)
-  onAdd?: (initialContent?: RichTextPayload) => void
+  onAdd?: (initialContent?: RichTextPayload, isEmptyBlock?: boolean) => void
   onAddMultiple?: (payloads: RichTextPayload[]) => void
   onHeightChange?: (id: string, height: number) => void
   onTabNext?: (id: string) => void

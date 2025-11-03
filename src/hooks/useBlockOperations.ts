@@ -9,6 +9,7 @@ import {
   removeBlock,
   getPreviousBlockInStack,
   getPreviousBlockByY,
+  getNextBlockInStack,
 } from '../logic/stackState'
 import { ensureInsertionOrder } from '../logic/stackLayout'
 import { createEmptyPayload, mergePayloads, htmlToJson, jsonToHtml, ensureJsonContent, CURRENT_SCHEMA_VERSION, calculateContentLength, calculateNodeSize, calculateInlineTextLength } from '../editor/richText'
@@ -17,7 +18,7 @@ import { sanitizeAndSave } from '../utils/sanitizeHTML'
 
 export type BlockCallbacks = {
   onContentUpdate: (payload: RichTextPayload) => void
-  onAdd: (initialContent?: RichTextPayload) => void
+  onAdd: (initialContent?: RichTextPayload, isEmptyBlock?: boolean) => void
   onHeightChange: (id: string, height: number) => void
   onTabNext: (id: string) => void
   onTabPrev: (id: string) => void
@@ -100,6 +101,15 @@ function applyPayloadToNode(node: Node, payload: RichTextPayload): Node {
 }
 
 /**
+ * Get all blocks in a stack, sorted by insertion order
+ */
+function getStackBlocks(stackId: string, allNodes: Node[]): Node[] {
+  return allNodes
+    .filter((n: any) => n.type !== 'stackContainer' && n.data?.stackId === stackId)
+    .sort((a: any, b: any) => (a.data.insertionOrder ?? 0) - (b.data.insertionOrder ?? 0))
+}
+
+/**
  * Hook for managing block CRUD operations
  */
 export function useBlockOperations(
@@ -119,8 +129,12 @@ export function useBlockOperations(
     headerHeight,
   } = options
 
-  const addBelowRef = useRef<(currentNodeId: string, initialContent?: RichTextPayload) => void>(() => {})
+  const addBelowRef = useRef<(currentNodeId: string, initialContent?: RichTextPayload, isEmptyBlock?: boolean) => void>(() => {})
   const handleSplitRef = useRef<(nodeId: string, before: RichTextPayload, after: RichTextPayload) => void>(() => {})
+
+  // Track consecutive empty block creations for stack splitting
+  // Map: stackId -> array of newly created empty block IDs
+  const consecutiveEmptyBlocksRef = useRef<Map<string, string[]>>(new Map())
 
   const handleDelete = useCallback(
     (nodeId: string) => {
@@ -145,6 +159,106 @@ export function useBlockOperations(
       })
     },
     [setNodes, nodeRefsMap, applyLayout, syncContainers]
+  )
+
+  /**
+   * Split a stack at the point where 3 consecutive empty blocks were created
+   * Moves all blocks below the 3 empty blocks to a new stack
+   */
+  const splitStackAt = useCallback(
+    (emptyBlockIds: string[]) => {
+      setNodes((nds) => {
+        // Get the first empty block to find the stack
+        const firstEmpty = nds.find((n) => n.id === emptyBlockIds[0]) as any
+        if (!firstEmpty) return nds
+
+        const stackId = firstEmpty.data?.stackId
+        if (!stackId) return nds // Only works in stacks
+
+        // Get all blocks in the stack
+        const stackBlocks = getStackBlocks(stackId, nds)
+        if (stackBlocks.length < 4) return nds // Need at least 4 blocks (1 above + 3 empty)
+
+        // Find the index of the last empty block
+        const lastEmptyId = emptyBlockIds[emptyBlockIds.length - 1]
+        const splitIdx = stackBlocks.findIndex((b) => b.id === lastEmptyId)
+        if (splitIdx === -1) return nds
+
+        // Check if there are blocks below the empty ones
+        const blocksBelow = stackBlocks.slice(splitIdx + 1)
+        if (blocksBelow.length === 0) return nds // Nothing to move down
+
+        // Find the original container
+        const originalContainer = nds.find((n) => n.id === stackId)
+        if (!originalContainer) return nds
+
+        // Create new stack ID
+        const newStackId = nextStackId(nds)
+
+        // Calculate new stack container position (below original stack)
+        const newContainerY = originalContainer.position.y + (originalContainer.data as any).height + gap
+
+        // Remove the 3 empty blocks and reassign blocks below to new stack
+        let updated = nds.filter((n) => !emptyBlockIds.includes(n.id))
+
+        // Reassign blocks below to new stack with new insertion orders
+        updated = updated.map((n: any) => {
+          if (blocksBelow.find((b) => b.id === n.id)) {
+            const newIdx = blocksBelow.findIndex((b) => b.id === n.id)
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                stackId: newStackId,
+                insertionOrder: newIdx,
+              },
+              parentId: newStackId,
+            }
+          }
+          return n
+        })
+
+        // Create new stack container
+        const topPadding = 4
+        const sidePadding = 4
+        const bottomPadding = 4
+        const estimatedHeight = headerHeight + topPadding + (blocksBelow.length * (24 + gap)) + bottomPadding
+        const containerWidth = blockWidth + 8
+
+        const newContainer: Node = {
+          id: newStackId,
+          type: 'stackContainer',
+          position: { x: originalContainer.position.x, y: newContainerY },
+          ...(originalContainer.parentId ? { parentId: originalContainer.parentId } : {}),
+          ...(originalContainer.extent ? { extent: originalContainer.extent } : {}),
+          data: { width: containerWidth, height: estimatedHeight, stackId: newStackId },
+          selectable: true,
+          draggable: true,
+          resizable: false,
+          zIndex: -1,
+        } as Node
+
+        updated = [...updated, newContainer]
+
+        // Recalculate layout for both stacks
+        updated = ensureInsertionOrder(stackId, updated)
+        updated = applyLayout(stackId, updated)
+        updated = ensureInsertionOrder(newStackId, updated)
+        updated = applyLayout(newStackId, updated)
+
+        // Focus the first block of the new stack
+        if (blocksBelow.length > 0) {
+          const firstBlockId = blocksBelow[0].id
+          setTimeout(() => nodeRefsMap.current[firstBlockId]?.current?.focus?.(), 50)
+        }
+
+        return updated
+      })
+
+      // Clear the tracking after split
+      consecutiveEmptyBlocksRef.current.clear()
+    },
+    [setNodes, nodeRefsMap, applyLayout, gap, headerHeight, blockWidth]
   )
 
   const handleMergeUp = useCallback(
@@ -213,8 +327,8 @@ export function useBlockOperations(
     [nodesRef, setNodes, nodeRefsMap, applyLayout, syncContainers]
   )
 
-  const addBelow = useCallback<(currentNodeId: string, initialContent?: RichTextPayload) => void>(
-    (currentNodeId, initialContent) => {
+  const addBelow = useCallback<(currentNodeId: string, initialContent?: RichTextPayload, isEmptyBlock?: boolean) => void>(
+    (currentNodeId, initialContent, isEmptyBlock = false) => {
       const payload = toPayload(initialContent)
 
       const newId = nextBlockId()
@@ -223,20 +337,53 @@ export function useBlockOperations(
       const currentNodeCheck = nodesRef.current.find((n) => n.id === currentNodeId) as any
       if (!currentNodeCheck) return
 
-      const isCreatingNewStack = !currentNodeCheck.data?.stackId
+      const existingStackId = currentNodeCheck.data?.stackId
+      const isCreatingNewStack = !existingStackId
+
+      // Track consecutive empty block creation for stack splitting
+      let shouldSplitAfterCreation = false
+      let emptyBlocksToSplit: string[] = []
+
+      if (existingStackId && isEmptyBlock && !initialContent) {
+        // Get or create the tracking array for this stack
+        const emptyBlocks = consecutiveEmptyBlocksRef.current.get(existingStackId) || []
+        emptyBlocks.push(newId)
+        consecutiveEmptyBlocksRef.current.set(existingStackId, emptyBlocks)
+
+        // Check if we've reached 3 consecutive empty blocks
+        if (emptyBlocks.length === 3) {
+          // Check if there are blocks below the current position in the stack
+          const stackBlocks = getStackBlocks(existingStackId, nodesRef.current)
+          const currentIdx = stackBlocks.findIndex((b) => b.id === currentNodeId)
+          const hasBlocksBelow = currentIdx !== -1 && currentIdx < stackBlocks.length - 1
+
+          if (hasBlocksBelow && stackBlocks.length >= 4) {
+            // Mark that we should split after creating this block
+            shouldSplitAfterCreation = true
+            emptyBlocksToSplit = [...emptyBlocks]
+          }
+        }
+      } else {
+        // Reset tracking if not creating an empty block
+        consecutiveEmptyBlocksRef.current.clear()
+      }
+
       // Always generate a new stackId to prevent reusing stale/old stackIds
-      const stackId = isCreatingNewStack ? nextStackId(nodesRef.current) : currentNodeCheck.data.stackId
+      const stackId = isCreatingNewStack ? nextStackId(nodesRef.current) : existingStackId
 
       setNodes((nds) => {
         const currentNode = nds.find((n) => n.id === currentNodeId) as any
         if (!currentNode) return nds
 
         const newBlockCallbacks = {
-          onContentUpdate: (nextPayload: RichTextPayload) =>
+          onContentUpdate: (nextPayload: RichTextPayload) => {
+            // Reset consecutive empty block tracking when user types content
+            consecutiveEmptyBlocksRef.current.clear()
             setNodes((inner) =>
               inner.map((ni: any) => (ni.id === newId ? applyPayloadToNode(ni, nextPayload) : ni))
-            ),
-          onAdd: (initial?: RichTextPayload) => addBelowRef.current(newId, initial),
+            )
+          },
+          onAdd: (initial?: RichTextPayload, isEmptyBlock?: boolean) => addBelowRef.current(newId, initial, isEmptyBlock),
           onHeightChange: handleHeightChange,
           onTabNext: (id: string) => tabHandlersRef.current.handleTabNext?.(id),
           onTabPrev: (id: string) => tabHandlersRef.current.handleTabPrev?.(id),
@@ -334,11 +481,14 @@ export function useBlockOperations(
             height: 24,
             insertionOrder: undefined,
             focusRef: nodeRefsMap.current[newId],
-            onContentUpdate: (nextPayload: RichTextPayload) =>
+            onContentUpdate: (nextPayload: RichTextPayload) => {
+              // Reset consecutive empty block tracking when user types content
+              consecutiveEmptyBlocksRef.current.clear()
               setNodes((inner) =>
                 inner.map((ni: any) => (ni.id === newId ? applyPayloadToNode(ni, nextPayload) : ni))
-              ),
-            onAdd: (initial?: RichTextPayload) => addBelowRef.current(newId, initial),
+              )
+            },
+            onAdd: (initial?: RichTextPayload, isEmptyBlock?: boolean) => addBelowRef.current(newId, initial, isEmptyBlock),
             onHeightChange: handleHeightChange,
             onTabNext: (id: string) => tabHandlersRef.current.handleTabNext?.(id),
             onTabPrev: (id: string) => tabHandlersRef.current.handleTabPrev?.(id),
@@ -382,8 +532,14 @@ export function useBlockOperations(
         setTimeout(() => nodeRefsMap.current[newId]?.current?.focus?.(), 50)
         return final
       })
+
+      // After block creation, trigger split if we have 3 consecutive empty blocks
+      if (shouldSplitAfterCreation) {
+        // Use setTimeout to ensure the block creation completes first
+        setTimeout(() => splitStackAt(emptyBlocksToSplit), 0)
+      }
     },
-    [setNodes, nodeRefsMap, nodesRef, ensureInsertionOrder, applyLayout, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, gap, headerHeight, blockWidth]
+    [setNodes, nodeRefsMap, nodesRef, ensureInsertionOrder, applyLayout, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, gap, headerHeight, blockWidth, splitStackAt]
   )
 
   const addMultipleBelow = useCallback(
@@ -409,11 +565,14 @@ export function useBlockOperations(
 
         // Create callbacks factory for new blocks
         const createCallbacks = (blockId: string) => ({
-          onContentUpdate: (nextPayload: RichTextPayload) =>
+          onContentUpdate: (nextPayload: RichTextPayload) => {
+            // Reset consecutive empty block tracking when user types content
+            consecutiveEmptyBlocksRef.current.clear()
             setNodes((inner) =>
               inner.map((ni: any) => (ni.id === blockId ? applyPayloadToNode(ni, nextPayload) : ni))
-            ),
-          onAdd: (initial?: RichTextPayload) => addBelowRef.current(blockId, initial),
+            )
+          },
+          onAdd: (initial?: RichTextPayload, isEmptyBlock?: boolean) => addBelowRef.current(blockId, initial, isEmptyBlock),
           onHeightChange: handleHeightChange,
           onTabNext: (id: string) => tabHandlersRef.current.handleTabNext?.(id),
           onTabPrev: (id: string) => tabHandlersRef.current.handleTabPrev?.(id),
@@ -765,11 +924,14 @@ export function useBlockOperations(
                 height: 24,
                 insertionOrder: order,
                 focusRef: nodeRefsMap.current[newId],
-                onContentUpdate: (nextPayload: RichTextPayload) =>
+                onContentUpdate: (nextPayload: RichTextPayload) => {
+                  // Reset consecutive empty block tracking when user types content
+                  consecutiveEmptyBlocksRef.current.clear()
                   setNodes((inner) =>
                     inner.map((ni: any) => (ni.id === newId ? applyPayloadToNode(ni, nextPayload) : ni))
-                  ),
-                onAdd: (initial?: RichTextPayload) => addBelowRef.current(newId, initial),
+                  )
+                },
+                onAdd: (initial?: RichTextPayload, isEmptyBlock?: boolean) => addBelowRef.current(newId, initial, isEmptyBlock),
                 onHeightChange: handleHeightChange,
                 onTabNext: (id: string) => tabHandlersRef.current.handleTabNext?.(id),
                 onTabPrev: (id: string) => tabHandlersRef.current.handleTabPrev?.(id),
@@ -813,9 +975,12 @@ export function useBlockOperations(
 
   const createBlockCallbacks = useCallback(
     (nodeId: string, stackId: string, _setNodesInner: any): Partial<BlockCallbacks> => ({
-      onContentUpdate: (payload) =>
-        setNodes((inner) => inner.map((ni: any) => (ni.id === nodeId ? applyPayloadToNode(ni, payload) : ni))),
-      onAdd: (initialContent?: RichTextPayload) => addBelow(nodeId, initialContent),
+      onContentUpdate: (payload) => {
+        // Reset consecutive empty block tracking when user types content
+        consecutiveEmptyBlocksRef.current.clear()
+        setNodes((inner) => inner.map((ni: any) => (ni.id === nodeId ? applyPayloadToNode(ni, payload) : ni)))
+      },
+      onAdd: (initialContent?: RichTextPayload, isEmptyBlock?: boolean) => addBelow(nodeId, initialContent, isEmptyBlock),
       onHeightChange: handleHeightChange,
       onSlashCommand: handleSlashCommand,
       onDelete: handleDelete,

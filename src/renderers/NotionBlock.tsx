@@ -53,9 +53,9 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
   )
 
   const handleAddBelow = useCallback(
-    (initialContent?: RichTextPayload) => {
+    (initialContent?: RichTextPayload, isEmptyBlock?: boolean) => {
       if (data.onAdd) {
-        data.onAdd(initialContent)
+        data.onAdd(initialContent, isEmptyBlock)
       } else {
         dispatchEvent('block:addBelow', { id, content: initialContent })
       }

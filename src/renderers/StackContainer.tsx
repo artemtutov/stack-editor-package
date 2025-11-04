@@ -220,7 +220,11 @@ export default function StackContainer({ id, data, selected }: Props) {
           onMouseEnter={async (e) => {
             e.currentTarget.style.backgroundColor = '#f3f4f6'
             // Prefetch fullscreen editor chunk on intent
-            try { await import('./FullscreenStackEditor' /* webpackPrefetch: true */) } catch {}
+            try {
+              await import('./FullscreenStackEditor')
+            } catch (err) {
+              // Silently ignore prefetch errors
+            }
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'transparent'

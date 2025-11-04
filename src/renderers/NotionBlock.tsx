@@ -20,15 +20,34 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
   const absolutePos = node ? getAbsolutePosition(node, allNodes) : { x: 0, y: 0 }
 
   // Track height changes and notify parent (callback or DOM event)
+  // Store previous height to implement epsilon threshold
+  const previousHeightRef = useRef<number>(0)
+
   useEffect(() => {
     const block = blockRef.current
     if (!block) return
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const height =
-          (entry as any).borderBoxSize?.[0]?.blockSize ||
-          (entry.target as HTMLElement).getBoundingClientRect().height
+        // Prefer borderBoxSize (transform-insensitive) over getBoundingClientRect (zoom-sensitive)
+        let height: number
+        if (entry.borderBoxSize && entry.borderBoxSize.length > 0) {
+          // Use borderBoxSize which is not affected by CSS transforms (zoom)
+          height = entry.borderBoxSize[0].blockSize
+        } else {
+          // Fallback to offsetHeight (also transform-insensitive)
+          height = (entry.target as HTMLElement).offsetHeight
+        }
+
+        // Apply epsilon threshold to ignore sub-pixel changes
+        const previousHeight = previousHeightRef.current
+        if (Math.abs(previousHeight - height) < 0.5) {
+          continue // Skip - no meaningful change
+        }
+
+        // Update stored height
+        previousHeightRef.current = height
+
         if (data.onHeightChange) {
           data.onHeightChange(id, height)
         } else {

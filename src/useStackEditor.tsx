@@ -123,6 +123,12 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   // Active resize tracking
   const activeResizeContainerRef = useRef<string | null>(null)
 
+  // Zoom state tracking for guarding layout recalculations
+  const isZoomingRef = useRef<boolean>(false)
+  const previousZoomRef = useRef<number>(1)
+  const zoomDebounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingSyncRef = useRef<boolean>(false)
+
   // Ref to hold callback injection function (populated later)
   const injectCallbacksRef = useRef<((nodes: Node[]) => Node[]) | null>(null)
 
@@ -190,18 +196,29 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   const handleHeightChange = useCallback(
     (nodeId: string, newHeight: number) => {
       setNodesBase((nds) => {
+        // Early-out: check if height actually changed (epsilon threshold)
+        const existingNode = nds.find((n) => n.id === nodeId) as any
+        const currentHeight = existingNode?.data?.height ?? 0
+        if (Math.abs(currentHeight - newHeight) < 0.5) {
+          return nds // No meaningful change, skip update
+        }
+
         let updated = nds.map((n: any) =>
           n.id === nodeId ? { ...n, data: { ...n.data, height: newHeight } } : n
         )
         const changedNode = updated.find((n) => n.id === nodeId) as any
 
         // Skip layout sync during active resize to avoid width conflicts
-        if (!activeResizeContainerRef.current) {
+        // Also skip during zoom to prevent coordinate confusion
+        if (!activeResizeContainerRef.current && !isZoomingRef.current) {
           if (changedNode?.data?.stackId) {
             updated = applyLayout(changedNode.data.stackId, updated)
           } else {
             updated = syncContainers(updated)
           }
+        } else if (isZoomingRef.current) {
+          // Queue a sync for after zoom completes
+          pendingSyncRef.current = true
         }
 
         // Inject callbacks if injection function is ready
@@ -339,10 +356,38 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     headerHeight: opts.headerHeight,
   })
 
-  // Viewport tracking (kept for compatibility, but not used for drop indicator)
+  // Viewport tracking with zoom detection
   const onMove = useCallback((_evt: any, viewport: { x: number; y: number; zoom: number }) => {
-    // Viewport is now accessed via reactFlowInstance
-  }, [])
+    // Detect zoom changes (not pan/translate)
+    const previousZoom = previousZoomRef.current
+    const currentZoom = viewport.zoom
+
+    if (Math.abs(previousZoom - currentZoom) > 0.001) {
+      // Zoom changed - set flag and start debounce timer
+      isZoomingRef.current = true
+      previousZoomRef.current = currentZoom
+
+      // Clear any existing timer
+      if (zoomDebounceTimerRef.current) {
+        clearTimeout(zoomDebounceTimerRef.current)
+      }
+
+      // Set new timer - flag clears 100ms after last zoom change
+      zoomDebounceTimerRef.current = setTimeout(() => {
+        isZoomingRef.current = false
+
+        // Run queued sync if needed
+        if (pendingSyncRef.current) {
+          pendingSyncRef.current = false
+          setNodesBase((nds) => {
+            const synced = syncContainers(nds)
+            const updated = updateBottomNodeFlags(synced)
+            return injectCallbacksRef.current ? injectCallbacksRef.current(updated) : updated
+          })
+        }
+      }, 100)
+    }
+  }, [syncContainers, setNodesBase])
 
   // Public API
   const focus = useCallback((blockId: string) => {

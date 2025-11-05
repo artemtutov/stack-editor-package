@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react'
-import type { NodeTypes } from '@xyflow/react'
+import type { NodeTypes, EdgeTypes } from '@xyflow/react'
 import useStackEditor from './useStackEditor'
 import NotionBlock from './renderers/NotionBlock'
 import StackContainer from './renderers/StackContainer'
+import { FloatingEdge } from './components/FloatingEdge'
 import type { StackEditorHookArgs, StackEditorHookResult } from './types'
 
 // Import CSS variables FIRST (defines all --tt-* variables globally)
@@ -29,7 +30,7 @@ export type StackEditorSlots = {
 
 export type StackEditorProps = StackEditorHookArgs &
   StackEditorSlots & {
-    children: (api: StackEditorHookResult & { nodeTypes: NodeTypes }) => React.ReactNode
+    children: (api: StackEditorHookResult & { nodeTypes: NodeTypes; edgeTypes: EdgeTypes }) => React.ReactNode
   }
 
 /**
@@ -91,9 +92,13 @@ export default function StackEditor({ renderBlock, renderContainer, children, ..
     return base
   }, [renderBlock, renderContainer])
 
+  const edgeTypes = useMemo(() => ({
+    floating: FloatingEdge,
+  }), [])
+
   return (
     <>
-      {children({ ...api, nodeTypes })}
+      {children({ ...api, nodeTypes, edgeTypes })}
       {api.overlays}
     </>
   )

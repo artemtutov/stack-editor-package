@@ -23,6 +23,7 @@ export type {
   ChangeEvent,
   ChangeEventType,
   ChangeListener,
+  StackEdge,
 } from './types'
 export { STACK_SNAPSHOT_VERSION } from './types'
 
@@ -33,6 +34,10 @@ export { default as SlashMenu } from './renderers/SlashMenu'
 export { default as DropIndicator } from './renderers/DropIndicator'
 export { default as FullscreenModal } from './renderers/FullscreenModal'
 export { default as FullscreenEditor } from './renderers/FullscreenEditor'
+
+// Export connection components
+export { StackHandles } from './components/StackHandles'
+export { FloatingEdge } from './components/FloatingEdge'
 
 // Export grouping utilities
 export {

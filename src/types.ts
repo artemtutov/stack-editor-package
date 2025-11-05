@@ -1,7 +1,19 @@
-import type { Node, NodeTypes } from '@xyflow/react'
+import type { Node, NodeTypes, Edge } from '@xyflow/react'
 import type { JSONContent, Editor } from '@tiptap/core'
 
 export type BlockId = string
+
+/**
+ * Represents a connection between two stack containers.
+ * Simplified edge type for persistence - extends React Flow's Edge type.
+ */
+export type StackEdge = {
+  id: string
+  source: string  // Source node ID (container canonical name or ID)
+  target: string  // Target node ID (container canonical name or ID)
+  sourceHandle?: string  // Which handle on source (top, right, bottom, left)
+  targetHandle?: string  // Which handle on target
+}
 
 export type SlashPayload = {
   anchor: { x: number; y: number }
@@ -107,6 +119,7 @@ export type StackEditorValue = InitialBlock[]
 
 export type StackEditorHookArgs = {
   initialBlocks?: StackEditorValue
+  initialEdges?: StackEdge[]
   options?: StackEditorOptions
   callbacks?: StackEditorCallbacks
 }
@@ -172,6 +185,12 @@ export type StackEditorHookResult = {
   onNodeDrag: (evt: React.MouseEvent, node: Node) => void
   onNodeDragStop: (evt: React.MouseEvent, node: Node) => void
   onMove: (_evt: any, viewport: { x: number; y: number; zoom: number }) => void
+  // Edge operations
+  edges: Edge[]
+  onEdgesChange: (changes: any) => void
+  onConnect: (connection: any) => void
+  getEdges: () => StackEdge[]
+  setEdges: React.Dispatch<React.SetStateAction<Edge[]>>
   // Block operations
   focus: (blockId: string) => void
   addBelow: (blockId: string, initialContent?: RichTextPayload) => void

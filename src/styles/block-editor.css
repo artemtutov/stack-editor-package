@@ -317,3 +317,67 @@
   border-right-width: 0 !important;
   border-radius: 4px;
 }
+
+/* ====================================
+   Connection Handles
+   ==================================== */
+
+/* Base handle styling - progressive disclosure (hidden by default) */
+.react-flow__handle {
+  cursor: crosshair !important;
+  width: 18px !important;
+  height: 18px !important;
+  border: 2px solid #ffffff !important;
+  background: rgb(35, 131, 226) !important; /* Notion blue */
+  border-radius: 50% !important;
+  opacity: 0 !important; /* Hidden by default */
+  transition: opacity 0.2s ease !important;
+  z-index: 1600 !important;
+}
+
+/* Show handles on node hover */
+.react-flow__node:hover .react-flow__handle {
+  opacity: 0.7 !important;
+}
+
+/* Full opacity on direct handle hover */
+.react-flow__handle:hover {
+  opacity: 1 !important;
+  background: rgb(25, 100, 180) !important; /* Darker blue on hover */
+}
+
+/* Mobile/Touch: show handles when node is selected */
+@media (max-width: 1023px) {
+  .react-flow__node.selected .react-flow__handle {
+    opacity: 0.7 !important;
+  }
+}
+
+/* ====================================
+   Edges (Connections)
+   ==================================== */
+
+/* Default edge styling */
+.react-flow__edge-path {
+  stroke: rgb(35, 131, 226) !important; /* Notion blue */
+  stroke-width: 2px !important;
+  stroke-linecap: round !important;
+  transition: stroke-width 0.2s ease !important;
+}
+
+/* Selected edge styling */
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: rgb(35, 131, 226) !important;
+  stroke-width: 4px !important;
+  filter: drop-shadow(0 0 6px rgba(35, 131, 226, 0.4)) !important;
+}
+
+/* Hover effect for edges */
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 3px !important;
+}
+
+/* Edge markers (arrow heads) */
+.react-flow__edge .react-flow__edge-path {
+  marker-end: url(#react-flow__arrowclosed) !important;
+}

@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
-import { ReactFlow, Background, Controls, MiniMap, ReactFlowProvider, Node, NodeProps, NodeChange } from '@xyflow/react'
+import { ReactFlow, Background, Controls, MiniMap, ReactFlowProvider, Node, NodeProps, NodeChange, MarkerType, ConnectionMode } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useStackEditor } from '../src'
+import { useStackEditor, FloatingEdge } from '../src'
 import '../src/styles/block-editor.css'
 import '../src/styles/fullscreen-editor.scss'
 import TipTapDemo from './TipTapDemo'
@@ -117,8 +117,9 @@ function StackDemo() {
   // Save current state
   const handleSave = useCallback(() => {
     const blocks = stackEditor.getBlocks()
-    setSavedState({ blocks, groupPosition })
-    console.log('💾 Saved state:', { blocks, groupPosition })
+    const edges = stackEditor.getEdges()
+    setSavedState({ blocks, edges, groupPosition })
+    console.log('💾 Saved state:', { blocks, edges, groupPosition })
   }, [stackEditor, groupPosition])
 
   // Load saved state
@@ -126,6 +127,21 @@ function StackDemo() {
     if (savedState) {
       setGroupPosition(savedState.groupPosition)
       stackEditor.loadBlocks(savedState.blocks)
+      if (savedState.edges) {
+        stackEditor.setEdges(savedState.edges.map((edge: any) => ({
+          ...edge,
+          type: 'floating',
+          style: {
+            stroke: 'rgb(35, 131, 226)',
+            strokeWidth: 2,
+            strokeLinecap: 'round',
+          },
+          markerEnd: {
+            type: 'ArrowClosed',
+            color: 'rgb(35, 131, 226)',
+          },
+        })))
+      }
       console.log('📂 Loaded state:', savedState)
     }
   }, [stackEditor, savedState])
@@ -179,6 +195,11 @@ function StackDemo() {
     ...stackEditor.nodeTypes,
     group: GroupNode,
   }), [stackEditor.nodeTypes])
+
+  // Edge types
+  const edgeTypes = useMemo(() => ({
+    floating: FloatingEdge,
+  }), [])
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -251,11 +272,16 @@ function StackDemo() {
       <ReactFlow
         nodes={allNodes}
         nodeTypes={allNodeTypes}
+        edges={stackEditor.edges}
+        edgeTypes={edgeTypes}
         onNodesChange={handleNodesChange}
+        onEdgesChange={stackEditor.onEdgesChange}
+        onConnect={stackEditor.onConnect}
         onNodeDragStart={stackEditor.onNodeDragStart}
         onNodeDrag={stackEditor.onNodeDrag}
         onNodeDragStop={stackEditor.onNodeDragStop}
         onMove={stackEditor.onMove}
+        connectionMode={ConnectionMode.Loose}
         panOnScroll
         panOnDrag
         zoomOnScroll

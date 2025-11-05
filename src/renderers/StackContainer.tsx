@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState, Suspense, lazy, useEffect } from 'react
 import { NodeResizeControl, Position, ResizeControlVariant } from '@xyflow/react'
 import FullscreenModal from './FullscreenModal'
 const LazyFullscreenStackEditor = lazy(() => import('./FullscreenStackEditor'))
+import { StackHandles } from '../components/StackHandles'
 import type { BlockData, RichTextPayload } from '../types'
 import { ensureJsonContent, jsonToHtml, CURRENT_SCHEMA_VERSION } from '../editor/richText'
 import { upgradeContentJson } from '../editor/upgrade'
@@ -122,6 +123,9 @@ export default function StackContainer({ id, data, selected }: Props) {
         position: 'relative',
       }}
     >
+      {/* Connection handles */}
+      <StackHandles isConnectable={true} />
+
       {/* Horizontal resize handles */}
       <NodeResizeControl
         position={Position.Left}

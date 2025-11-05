@@ -1,5 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNodesState, applyNodeChanges, useStoreApi, useReactFlow, type Node, type NodeTypes, type NodeChange } from '@xyflow/react'
+import {
+  useNodesState,
+  useEdgesState,
+  applyNodeChanges,
+  useStoreApi,
+  useReactFlow,
+  addEdge,
+  type Node,
+  type Edge,
+  type Connection,
+  type NodeTypes,
+  type NodeChange,
+  MarkerType,
+  ConnectionMode,
+} from '@xyflow/react'
 import type { Editor } from '@tiptap/core'
 import NotionBlock from './renderers/NotionBlock'
 import StackContainer from './renderers/StackContainer'
@@ -17,6 +31,7 @@ import type {
   StackSnapshot,
   ChangeEvent,
   ChangeListener,
+  StackEdge,
 } from './types'
 import { STACK_SNAPSHOT_VERSION } from './types'
 import { useStackLayout } from './hooks/useStackLayout'
@@ -122,6 +137,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   const nodeRefsMap = useRef<NodeRefsMap>({})
   const storeApi = useStoreApi()
   const reactFlowInstance = useReactFlow()
+
+  // Edge state
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
 
   // Active resize tracking
   const activeResizeContainerRef = useRef<string | null>(null)
@@ -469,6 +487,59 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         return block
       })
   }, [])
+
+  // Edge operations
+  const onConnect = useCallback((params: Connection) => {
+    const edge: Edge = {
+      ...params,
+      id: `e-${params.source}-${params.target}-${Date.now()}`,
+      type: 'floating',
+      style: {
+        stroke: 'rgb(35, 131, 226)', // Notion blue
+        strokeWidth: 2,
+        strokeLinecap: 'round',
+      },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: 'rgb(35, 131, 226)',
+      },
+    }
+    setEdges((eds) => addEdge(edge, eds))
+  }, [setEdges])
+
+  const getEdges = useCallback((): StackEdge[] => {
+    return edges.map(edge => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      sourceHandle: edge.sourceHandle ?? undefined,
+      targetHandle: edge.targetHandle ?? undefined,
+    }))
+  }, [edges])
+
+  // Load initial edges
+  useEffect(() => {
+    if (args?.initialEdges && args.initialEdges.length > 0) {
+      const initialEdges: Edge[] = args.initialEdges.map(edge => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: edge.sourceHandle,
+        targetHandle: edge.targetHandle,
+        type: 'floating',
+        style: {
+          stroke: 'rgb(35, 131, 226)',
+          strokeWidth: 2,
+          strokeLinecap: 'round',
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: 'rgb(35, 131, 226)',
+        },
+      }))
+      setEdges(initialEdges)
+    }
+  }, []) // Only run once on mount
 
   // Create a new block imperatively (without full reinitialization)
   const createBlock = useCallback((block: Partial<InitialBlock>): { id: string; canonicalName: string } => {
@@ -1714,6 +1785,12 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     nodes,
     nodeTypes,
     onNodesChange,
+    // Edge operations
+    edges,
+    onEdgesChange,
+    onConnect,
+    getEdges,
+    setEdges,
     onNodeDragStart: (evt, node) => {
       // Handle extent constraint removal for auto-grouping
       if (opts.enableAutoGrouping && node.parentId && node.extent === 'parent') {

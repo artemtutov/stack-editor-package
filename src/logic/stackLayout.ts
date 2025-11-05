@@ -136,10 +136,12 @@ export function syncStackContainers(
         containerY = existingContainer.position.y
       } else {
         // No parented blocks yet, calculate container position from absolute positions
-        const firstBlock = stackNodes[0] as any
-        const absoluteYs = stackNodes.map(n => n.position.y)
-        const minAbsY = Math.min(...absoluteYs)
-        containerX = firstBlock.position.x - 4
+        // Use true absolute coordinates to avoid mixing relative/absolute frames
+        const absPositions = stackNodes.map(b => getAbsolutePosition(b as any, allNodes))
+        const minAbsX = Math.min(...absPositions.map(p => p.x))
+        const minAbsY = Math.min(...absPositions.map(p => p.y))
+        // Blocks render at x: 4 inside the container; derive container origin from content origin
+        containerX = minAbsX - 4
         containerY = minAbsY - headerHeight
       }
 

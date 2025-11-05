@@ -150,6 +150,11 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   const zoomDebounceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSyncRef = useRef<boolean>(false)
 
+  // Pan state tracking for guarding layout recalculations
+  const isPanningRef = useRef<boolean>(false)
+  const previousPanRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const panDebounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
   // Ref to hold callback injection function (populated later)
   const injectCallbacksRef = useRef<((nodes: Node[]) => Node[]) | null>(null)
 
@@ -240,15 +245,15 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         const changedNode = updated.find((n) => n.id === nodeId) as any
 
         // Skip layout sync during active resize to avoid width conflicts
-        // Also skip during zoom to prevent coordinate confusion
-        if (!activeResizeContainerRef.current && !isZoomingRef.current) {
+        // Also skip during zoom or pan to prevent coordinate confusion
+        if (!activeResizeContainerRef.current && !isZoomingRef.current && !isPanningRef.current) {
           if (changedNode?.data?.stackId) {
             updated = applyLayout(changedNode.data.stackId, updated)
           } else {
             updated = syncContainers(updated)
           }
-        } else if (isZoomingRef.current) {
-          // Queue a sync for after zoom completes
+        } else if (isZoomingRef.current || isPanningRef.current) {
+          // Queue a sync for after viewport motion completes
           pendingSyncRef.current = true
         }
 
@@ -389,9 +394,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     headerHeight: opts.headerHeight,
   })
 
-  // Viewport tracking with zoom detection
+  // Viewport tracking with zoom and pan detection
   const onMove = useCallback((_evt: any, viewport: { x: number; y: number; zoom: number }) => {
-    // Detect zoom changes (not pan/translate)
+    // Detect zoom changes
     const previousZoom = previousZoomRef.current
     const currentZoom = viewport.zoom
 
@@ -410,6 +415,34 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         isZoomingRef.current = false
 
         // Run queued sync if needed
+        if (pendingSyncRef.current) {
+          pendingSyncRef.current = false
+          setNodesBase((nds) => {
+            const synced = syncContainers(nds)
+            const updated = updateBottomNodeFlags(synced)
+            return injectCallbacksRef.current ? injectCallbacksRef.current(updated) : updated
+          })
+        }
+      }, 100)
+    }
+
+    // Detect pan (translate) changes
+    const prevPan = previousPanRef.current
+    const panDeltaX = Math.abs(viewport.x - prevPan.x)
+    const panDeltaY = Math.abs(viewport.y - prevPan.y)
+    previousPanRef.current = { x: viewport.x, y: viewport.y }
+
+    if (panDeltaX > 0.5 || panDeltaY > 0.5) {
+      isPanningRef.current = true
+
+      if (panDebounceTimerRef.current) {
+        clearTimeout(panDebounceTimerRef.current)
+      }
+
+      // Clear pan flag shortly after last pan update
+      panDebounceTimerRef.current = setTimeout(() => {
+        isPanningRef.current = false
+
         if (pendingSyncRef.current) {
           pendingSyncRef.current = false
           setNodesBase((nds) => {

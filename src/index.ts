@@ -12,6 +12,8 @@ export { enableLogging, disableLogging, isLoggingEnabled } from './utils/setupLo
 export type {
   BlockData,
   BlockId,
+  ContentType,
+  StackContainerData,
   StackEditorOptions,
   InitialBlock,
   StackEditorValue,
@@ -40,3 +42,26 @@ export {
   isPointWithinNode,
   findIntersectingGroup,
 } from './logic/grouping'
+
+// Export content helper utilities
+export {
+  extractPreview,
+  detectContentType,
+  computeContentHash,
+  computeContentHashSync,
+  normalizeContentJson,
+  countItems,
+  getTodoStats,
+  getWordCount,
+  PREVIEW_ALGO_VERSION,
+  HASH_ALGO_VERSION,
+} from './logic/contentHelpers'
+
+// Export canonical name utilities
+export {
+  CanonicalNameRegistry,
+  CanonicalNameError,
+  generateCanonicalName,
+  normalizeCanonicalName,
+  validateNotReserved,
+} from './logic/canonicalNames'

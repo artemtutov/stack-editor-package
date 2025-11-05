@@ -255,7 +255,13 @@ export function syncStackContainers(
           width: containerWidth,
           height: containerHeight,
         },
-        data: { width: containerWidth, height: containerHeight, stackId },
+        data: {
+          // Preserve existing data (especially canonicalName) while updating dimensions
+          ...(existingContainer?.data || {}),
+          width: containerWidth,
+          height: containerHeight,
+          stackId
+        },
         selectable: true,
         draggable: true,
         resizable: false,

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { Node } from '@xyflow/react'
 import type { JSONContent } from '@tiptap/core'
-import type { BlockData, RichTextPayload, SlashPayload } from '../types'
+import type { BlockData, RichTextPayload, SlashPayload, ChangeEvent } from '../types'
+import type { CanonicalNameRegistry } from '../logic/canonicalNames'
 import {
   nextBlockId,
   nextStackId,
@@ -15,6 +16,8 @@ import { ensureInsertionOrder } from '../logic/stackLayout'
 import { createEmptyPayload, mergePayloads, htmlToJson, jsonToHtml, ensureJsonContent, CURRENT_SCHEMA_VERSION, calculateContentLength, calculateNodeSize, calculateInlineTextLength } from '../editor/richText'
 import { upgradeContentJson } from '../editor/upgrade'
 import { sanitizeAndSave } from '../utils/sanitizeHTML'
+import { generateCanonicalName } from '../logic/canonicalNames'
+import { extractPreview, detectContentType, computeContentHashSync } from '../logic/contentHelpers'
 
 export type BlockCallbacks = {
   onContentUpdate: (payload: RichTextPayload) => void
@@ -53,6 +56,8 @@ export type UseBlockOperationsOptions = {
   gap: number
   blockWidth: number
   headerHeight: number
+  canonicalNameRegistry: React.MutableRefObject<CanonicalNameRegistry>
+  emitChange: (event: ChangeEvent) => void
 }
 
 export type UseBlockOperationsResult = {
@@ -89,6 +94,11 @@ function blockDataToPayload(data: BlockData): RichTextPayload {
 }
 
 function applyPayloadToNode(node: Node, payload: RichTextPayload): Node {
+  // Recompute content helpers when content changes
+  const contentPreview = extractPreview(payload.json)
+  const contentType = detectContentType(payload.json)
+  const contentHash = computeContentHashSync(payload.json)
+
   return {
     ...node,
     data: {
@@ -96,6 +106,9 @@ function applyPayloadToNode(node: Node, payload: RichTextPayload): Node {
       contentJson: payload.json,
       cachedHTML: payload.html,
       schemaVersion: CURRENT_SCHEMA_VERSION,
+      contentPreview,
+      contentType,
+      contentHash,
     } as BlockData,
   }
 }
@@ -127,6 +140,8 @@ export function useBlockOperations(
     gap,
     blockWidth,
     headerHeight,
+    canonicalNameRegistry,
+    emitChange,
   } = options
 
   const addBelowRef = useRef<(currentNodeId: string, initialContent?: RichTextPayload, isEmptyBlock?: boolean) => void>(() => {})
@@ -138,9 +153,12 @@ export function useBlockOperations(
 
   const handleDelete = useCallback(
     (nodeId: string) => {
+      // Extract canonical name before deletion for cleanup and events
+      const node = nodesRef.current.find((n) => n.id === nodeId) as any
+      const canonicalName = (node?.data as BlockData | undefined)?.canonicalName
+
       setNodes((nds) => {
         const focusId = findFocusTargetAfterDelete(nodeId, nds)
-        const node = nds.find((n) => n.id === nodeId) as any
         const stackId = node?.data?.stackId as string | undefined
 
         let updated = removeBlock(nodeId, nds)
@@ -157,8 +175,18 @@ export function useBlockOperations(
         }
         return updated
       })
+
+      // Unregister canonical name and emit delete event
+      if (canonicalName) {
+        canonicalNameRegistry.current.unregister(canonicalName)
+        emitChange({
+          type: 'block.delete',
+          blockId: nodeId,
+          canonicalName,
+        })
+      }
     },
-    [setNodes, nodeRefsMap, applyLayout, syncContainers]
+    [setNodes, nodeRefsMap, nodesRef, applyLayout, syncContainers, canonicalNameRegistry, emitChange]
   )
 
   /**
@@ -225,13 +253,22 @@ export function useBlockOperations(
         const estimatedHeight = headerHeight + topPadding + (blocksBelow.length * (24 + gap)) + bottomPadding
         const containerWidth = blockWidth + 8
 
+        // Generate canonical name for new stack container
+        const newContainerCanonicalName = generateCanonicalName('stack', newStackId)
+        canonicalNameRegistry.current.register(newContainerCanonicalName, newStackId, 'stack')
+
         const newContainer: Node = {
           id: newStackId,
           type: 'stackContainer',
           position: { x: originalContainer.position.x, y: newContainerY },
           ...(originalContainer.parentId ? { parentId: originalContainer.parentId } : {}),
           ...(originalContainer.extent ? { extent: originalContainer.extent } : {}),
-          data: { width: containerWidth, height: estimatedHeight, stackId: newStackId },
+          data: {
+            canonicalName: newContainerCanonicalName,
+            width: containerWidth,
+            height: estimatedHeight,
+            stackId: newStackId
+          },
           selectable: true,
           draggable: true,
           resizable: false,
@@ -258,7 +295,7 @@ export function useBlockOperations(
       // Clear the tracking after split
       consecutiveEmptyBlocksRef.current.clear()
     },
-    [setNodes, nodeRefsMap, applyLayout, gap, headerHeight, blockWidth]
+    [setNodes, nodeRefsMap, applyLayout, gap, headerHeight, blockWidth, canonicalNameRegistry]
   )
 
   const handleMergeUp = useCallback(
@@ -407,6 +444,10 @@ export function useBlockOperations(
           const containerHeight = headerHeight + topPadding + currentHeight + gap + 24 + bottomPadding
           const containerWidth = blockWidth + 8
 
+          // Generate canonical name for stack container
+          const containerCanonicalName = generateCanonicalName('stack', stackId)
+          canonicalNameRegistry.current.register(containerCanonicalName, stackId, 'stack')
+
           const containerNode: Node = {
             id: stackId,
             type: 'stackContainer',
@@ -414,7 +455,12 @@ export function useBlockOperations(
             // Inherit parent from original block if grouped
             ...(currentNode.parentId ? { parentId: currentNode.parentId } : {}),
             ...(currentNode.extent ? { extent: currentNode.extent } : {}),
-            data: { width: containerWidth, height: containerHeight, stackId },
+            data: {
+              canonicalName: containerCanonicalName,
+              width: containerWidth,
+              height: containerHeight,
+              stackId
+            },
             selectable: true,
             draggable: true,
             resizable: false,
@@ -430,9 +476,17 @@ export function useBlockOperations(
               ...currentNode.data,
               stackId,
               insertionOrder: 0,
+              stackIndex: 0,
               isBottomNode: false,
             },
           }
+
+          // Generate canonical name and content helpers
+          const canonicalName = generateCanonicalName('block', newId)
+          canonicalNameRegistry.current.register(canonicalName, newId, 'block')
+          const contentPreview = extractPreview(payload.json)
+          const contentType = detectContentType(payload.json)
+          const contentHash = computeContentHashSync(payload.json)
 
           const newNode: Node = {
             id: newId,
@@ -442,13 +496,18 @@ export function useBlockOperations(
             dragHandle: '.drag-handle',
             className: 'in-stack',
             data: {
+              canonicalName,
               contentJson: payload.json,
               cachedHTML: payload.html,
               schemaVersion: CURRENT_SCHEMA_VERSION,
+              contentPreview,
+              contentType,
+              contentHash,
               stackId,
               isBottomNode: true,
               height: 24,
               insertionOrder: 1,
+              stackIndex: 1,
               focusRef: nodeRefsMap.current[newId],
               ...newBlockCallbacks,
             } as BlockData,
@@ -466,6 +525,13 @@ export function useBlockOperations(
           return final
         }
 
+        // Generate canonical name and content helpers for existing stack
+        const canonicalNameAddBelow = generateCanonicalName('block', newId)
+        canonicalNameRegistry.current.register(canonicalNameAddBelow, newId, 'block')
+        const contentPreviewAddBelow = extractPreview(payload.json)
+        const contentTypeAddBelow = detectContentType(payload.json)
+        const contentHashAddBelow = computeContentHashSync(payload.json)
+
         const newNode: Node = {
           id: newId,
           type: 'block',
@@ -473,9 +539,13 @@ export function useBlockOperations(
           position: { x: 4, y: 0 },
           dragHandle: '.drag-handle',
           data: {
+            canonicalName: canonicalNameAddBelow,
             contentJson: payload.json,
             cachedHTML: payload.html,
             schemaVersion: CURRENT_SCHEMA_VERSION,
+            contentPreview: contentPreviewAddBelow,
+            contentType: contentTypeAddBelow,
+            contentHash: contentHashAddBelow,
             stackId,
             isBottomNode: true,
             height: 24,
@@ -597,6 +667,10 @@ export function useBlockOperations(
           const estimatedTotalHeight = headerHeight + topPadding + (currentHeight + gap) * (payloads.length + 1) + bottomPadding
           const containerWidth = blockWidth + 8
 
+          // Generate canonical name for new stack container
+          const containerCanonicalName = generateCanonicalName('stack', stackId)
+          canonicalNameRegistry.current.register(containerCanonicalName, stackId, 'stack')
+
           const containerNode: Node = {
             id: stackId,
             type: 'stackContainer',
@@ -604,7 +678,12 @@ export function useBlockOperations(
             // Inherit parent from original block if grouped
             ...(currentNode.parentId ? { parentId: currentNode.parentId } : {}),
             ...(currentNode.extent ? { extent: currentNode.extent } : {}),
-            data: { width: containerWidth, height: estimatedTotalHeight, stackId },
+            data: {
+              canonicalName: containerCanonicalName,
+              width: containerWidth,
+              height: estimatedTotalHeight,
+              stackId
+            },
             selectable: true,
             draggable: true,
             resizable: false,
@@ -620,12 +699,21 @@ export function useBlockOperations(
               ...currentNode.data,
               stackId,
               insertionOrder: 0,
+              stackIndex: 0,
               isBottomNode: false,
             },
           }
 
           const newNodes: Node[] = payloads.map((payload, index) => {
             const newId = newIds[index]
+
+            // Generate canonical name and content helpers
+            const canonicalName = generateCanonicalName('block', newId)
+            canonicalNameRegistry.current.register(canonicalName, newId, 'block')
+            const contentPreview = extractPreview(payload.json)
+            const contentType = detectContentType(payload.json)
+            const contentHash = computeContentHashSync(payload.json)
+
             return {
               id: newId,
               type: 'block',
@@ -634,13 +722,18 @@ export function useBlockOperations(
               dragHandle: '.drag-handle',
               className: 'in-stack',
               data: {
+                canonicalName,
                 contentJson: payload.json,
                 cachedHTML: payload.html,
                 schemaVersion: CURRENT_SCHEMA_VERSION,
+                contentPreview,
+                contentType,
+                contentHash,
                 stackId,
                 isBottomNode: index === payloads.length - 1,
                 height: 24,
                 insertionOrder: index + 1,
+                stackIndex: index + 1,
                 focusRef: nodeRefsMap.current[newId],
                 ...createCallbacks(newId),
               } as BlockData,
@@ -665,6 +758,14 @@ export function useBlockOperations(
         // Adding to existing stack
         const newNodes: Node[] = payloads.map((payload, index) => {
           const newId = newIds[index]
+
+          // Generate canonical name and content helpers
+          const canonicalName = generateCanonicalName('block', newId)
+          canonicalNameRegistry.current.register(canonicalName, newId, 'block')
+          const contentPreview = extractPreview(payload.json)
+          const contentType = detectContentType(payload.json)
+          const contentHash = computeContentHashSync(payload.json)
+
           return {
             id: newId,
             type: 'block',
@@ -672,9 +773,13 @@ export function useBlockOperations(
             position: { x: 4, y: 0 },
             dragHandle: '.drag-handle',
             data: {
+              canonicalName,
               contentJson: payload.json,
               cachedHTML: payload.html,
               schemaVersion: CURRENT_SCHEMA_VERSION,
+              contentPreview,
+              contentType,
+              contentHash,
               stackId,
               isBottomNode: index === payloads.length - 1,
               height: 24,
@@ -728,7 +833,7 @@ export function useBlockOperations(
         return final
       })
     },
-    [setNodes, nodeRefsMap, nodesRef, ensureInsertionOrder, applyLayout, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, gap, headerHeight, blockWidth]
+    [setNodes, nodeRefsMap, nodesRef, ensureInsertionOrder, applyLayout, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, gap, headerHeight, blockWidth, canonicalNameRegistry]
   )
 
   const handleSplit = useCallback<(nodeId: string, before: RichTextPayload, after: RichTextPayload) => void>(
@@ -779,6 +884,10 @@ export function useBlockOperations(
           const containerHeight = headerHeight + topPadding + currentHeight + gap + 24 + bottomPadding
           const containerWidth = blockWidth + 8
 
+          // Generate canonical name for new stack container
+          const containerCanonicalName = generateCanonicalName('stack', stackId)
+          canonicalNameRegistry.current.register(containerCanonicalName, stackId, 'stack')
+
           const containerNode: Node = {
             id: stackId,
             type: 'stackContainer',
@@ -786,12 +895,39 @@ export function useBlockOperations(
             // Inherit parent from original block if grouped
             ...(node.parentId ? { parentId: node.parentId } : {}),
             ...(node.extent ? { extent: node.extent } : {}),
-            data: { width: containerWidth, height: containerHeight, stackId },
+            data: {
+              canonicalName: containerCanonicalName,
+              width: containerWidth,
+              height: containerHeight,
+              stackId
+            },
             selectable: true,
             draggable: true,
             resizable: false,
             zIndex: -1,
           } as Node
+
+          // Generate canonical name and content helpers for new split block
+          const canonicalNameSplit = generateCanonicalName('block', newId)
+          canonicalNameRegistry.current.register(canonicalNameSplit, newId, 'block')
+          const contentPreviewSplit = extractPreview(afterPayload.json)
+          const contentTypeSplit = detectContentType(afterPayload.json)
+          const contentHashSplit = computeContentHashSync(afterPayload.json)
+
+          // Update current node to be part of the stack
+          const updatedCurrentInStack = {
+            ...updatedCurrent,
+            parentId: stackId,
+            position: { x: sidePadding, y: headerHeight + topPadding },
+            className: 'in-stack',
+            data: {
+              ...(updatedCurrent.data as BlockData),
+              stackId,
+              insertionOrder: 0,
+              stackIndex: 0,
+              isBottomNode: false,
+            },
+          }
 
           const newNode: Node = {
             id: newId,
@@ -801,13 +937,18 @@ export function useBlockOperations(
             dragHandle: '.drag-handle',
             className: 'in-stack',
             data: {
+              canonicalName: canonicalNameSplit,
               contentJson: afterPayload.json,
               cachedHTML: afterPayload.html,
               schemaVersion: CURRENT_SCHEMA_VERSION,
+              contentPreview: contentPreviewSplit,
+              contentType: contentTypeSplit,
+              contentHash: contentHashSplit,
               stackId,
               isBottomNode: true,
               height: 24,
               insertionOrder: 1,
+              stackIndex: 1,
               focusRef: nodeRefsMap.current[newId],
               ...newBlockCallbacks,
             } as BlockData,
@@ -816,13 +957,20 @@ export function useBlockOperations(
           const updatedNodes = [
             containerNode,
             ...nds.filter((n) => n.id !== nodeId),
-            updatedCurrent,
+            updatedCurrentInStack,
             newNode,
           ]
 
           setTimeout(() => nodeRefsMap.current[newId]?.current?.focus?.(), 50)
           return updatedNodes
         }
+
+        // Generate canonical name and content helpers for new split block
+        const canonicalNameSplit2 = generateCanonicalName('block', newId)
+        canonicalNameRegistry.current.register(canonicalNameSplit2, newId, 'block')
+        const contentPreviewSplit2 = extractPreview(afterPayload.json)
+        const contentTypeSplit2 = detectContentType(afterPayload.json)
+        const contentHashSplit2 = computeContentHashSync(afterPayload.json)
 
         const newNode: Node = {
           id: newId,
@@ -831,9 +979,13 @@ export function useBlockOperations(
           position: { x: 4, y: 0 },
           dragHandle: '.drag-handle',
           data: {
+            canonicalName: canonicalNameSplit2,
             contentJson: afterPayload.json,
             cachedHTML: afterPayload.html,
             schemaVersion: CURRENT_SCHEMA_VERSION,
+            contentPreview: contentPreviewSplit2,
+            contentType: contentTypeSplit2,
+            contentHash: contentHashSplit2,
             stackId,
             isBottomNode: true,
             height: 24,
@@ -909,6 +1061,13 @@ export function useBlockOperations(
             const newId = nextBlockId()
             if (!nodeRefsMap.current[newId]) nodeRefsMap.current[newId] = { current: null }
 
+            // Generate canonical name and content helpers
+            const canonicalName = generateCanonicalName('block', newId)
+            canonicalNameRegistry.current.register(canonicalName, newId, 'block')
+            const contentPreview = extractPreview(payload.json)
+            const contentType = detectContentType(payload.json)
+            const contentHash = computeContentHashSync(payload.json)
+
             const newNode: Node = {
               id: newId,
               type: 'block',
@@ -916,9 +1075,13 @@ export function useBlockOperations(
               position: { x: 4, y: 0 },
               dragHandle: '.drag-handle',
               data: {
+                canonicalName,
                 contentJson: payload.json,
                 cachedHTML: payload.html,
                 schemaVersion: CURRENT_SCHEMA_VERSION,
+                contentPreview,
+                contentType,
+                contentHash,
                 stackId,
                 isBottomNode: true,
                 height: 24,
@@ -953,6 +1116,16 @@ export function useBlockOperations(
         // Remove blocks not present in incoming list
         const removeIds = new Set(existingBlocks.map((n) => n.id).filter((id) => !keepIds.has(id)))
         if (removeIds.size) {
+          // Unregister canonical names for removed blocks
+          removeIds.forEach(id => {
+            const block = working.find(n => n.id === id)
+            if (block && block.type === 'block') {
+              const canonicalName = (block.data as BlockData).canonicalName
+              if (canonicalName) {
+                canonicalNameRegistry.current.unregister(canonicalName)
+              }
+            }
+          })
           working = working.filter((n) => !removeIds.has(n.id))
         }
 

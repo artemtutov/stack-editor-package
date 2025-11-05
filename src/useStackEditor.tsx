@@ -7,6 +7,7 @@ import SlashMenu, { type SlashMenuItem } from './renderers/SlashMenu'
 import DropIndicator from './renderers/DropIndicator'
 import type {
   BlockData,
+  StackContainerData,
   StackEditorHookArgs,
   StackEditorHookResult,
   InitialBlock,
@@ -28,6 +29,8 @@ import { sanitizeAndSave } from './utils/sanitizeHTML'
 import { createEmptyPayload, htmlToJson, jsonToHtml, ensureJsonContent, CURRENT_SCHEMA_VERSION } from './editor/richText'
 import { getAbsolutePosition, convertAbsoluteToRelative, convertRelativeToAbsolute, findIntersectingGroup } from './logic/grouping'
 import { enableLogging, disableLogging } from './utils/setupLogger'
+import { CanonicalNameRegistry, generateCanonicalName } from './logic/canonicalNames'
+import { extractPreview, detectContentType, computeContentHashSync, PREVIEW_ALGO_VERSION, HASH_ALGO_VERSION } from './logic/contentHelpers'
 
 // Default options
 const DEFAULTS: Required<StackEditorOptions> = {
@@ -147,6 +150,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   const changeListenersRef = useRef<Set<ChangeListener>>(new Set())
   const isRestoringRef = useRef(false)
 
+  // Canonical name registry
+  const canonicalNameRegistryRef = useRef(new CanonicalNameRegistry())
+
   // Update nodes ref
   useEffect(() => {
     nodesRef.current = nodes
@@ -176,9 +182,16 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     // Skip emitting during transactions or restoration
     if (isInTransactionRef.current || isRestoringRef.current) return
 
+    // Add event metadata if not present
+    const enrichedEvent: ChangeEvent = {
+      ...event,
+      eventId: event.eventId ?? crypto.randomUUID(),
+      timestamp: event.timestamp ?? Date.now(),
+    }
+
     changeListenersRef.current.forEach(listener => {
       try {
-        listener(event)
+        listener(enrichedEvent)
       } catch (err) {
         console.error('📦 Stack Editor: Error in change listener:', err)
       }
@@ -326,6 +339,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       gap: opts.gap,
       blockWidth: opts.blockWidth,
       headerHeight: opts.headerHeight,
+      canonicalNameRegistry: canonicalNameRegistryRef,
+      emitChange,
     },
     setNodesWrapper
   )
@@ -409,8 +424,13 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         const data = n.data as BlockData
         const block: InitialBlock = {
           id: n.id,
+          canonicalName: data.canonicalName,
           contentJson: data.contentJson,
           html: data.cachedHTML,
+          contentPreview: data.contentPreview,
+          contentType: data.contentType,
+          contentHash: data.contentHash,
+          stackIndex: data.stackIndex,
         }
 
         // Preserve position, parentId, extent, stackId
@@ -426,10 +446,16 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         if (data.stackId) {
           block.stackId = data.stackId
 
-          // Save container position for stack persistence
+          // Save container position and canonical name for stack persistence
           const container = containers.find(c => c.id === data.stackId)
           if (container?.position) {
             block.containerPosition = { x: container.position.x, y: container.position.y }
+          }
+          if (container?.data) {
+            const containerData = container.data as any
+            if (containerData.canonicalName) {
+              block.containerCanonicalName = containerData.canonicalName
+            }
           }
           // Save container grouping info (for grouped containers)
           if (container?.parentId) {
@@ -445,7 +471,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   }, [])
 
   // Create a new block imperatively (without full reinitialization)
-  const createBlock = useCallback((block: Partial<InitialBlock>) => {
+  const createBlock = useCallback((block: Partial<InitialBlock>): { id: string; canonicalName: string } => {
     const id = block.id ?? nextBlockId()
     if (!nodeRefsMap.current[id]) nodeRefsMap.current[id] = { current: null }
 
@@ -463,21 +489,46 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       payload = createEmptyPayload()
     }
 
+    // Generate or use provided canonical name
+    const canonicalName = block.canonicalName ?? generateCanonicalName('block', id)
+
+    // Register canonical name (will throw if conflict)
+    canonicalNameRegistryRef.current.register(canonicalName, id, 'block')
+
+    // Compute content helpers
+    const contentPreview = extractPreview(payload.json)
+    const contentType = detectContentType(payload.json)
+    const contentHash = computeContentHashSync(payload.json)
+
     // Get current max insertion order
     const maxOrder = nodesRef.current
       .filter(n => n.type === 'block')
       .reduce((max, n: any) => Math.max(max, (n.data as BlockData).insertionOrder ?? 0), -1)
 
+    // Calculate stack index if part of a stack
+    let stackIndex: number | undefined
+    if (block.stackId) {
+      const stackBlocks = nodesRef.current.filter(
+        n => n.type === 'block' && (n.data as BlockData).stackId === block.stackId
+      )
+      stackIndex = block.stackIndex ?? stackBlocks.length
+    }
+
     // Create block data
     const data: BlockData = {
+      canonicalName,
       contentJson: payload.json,
       cachedHTML: payload.html,
       schemaVersion: CURRENT_SCHEMA_VERSION,
+      contentPreview,
+      contentType,
+      contentHash,
       height: 24,
       insertionOrder: maxOrder + 1,
       isBottomNode: true,  // New blocks are always at bottom initially
       focusRef: nodeRefsMap.current[id],
       stackId: block.stackId,
+      stackIndex,
     }
 
     // Build node
@@ -512,14 +563,41 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         data: {
           ...(newNode.data as BlockData),
           onContentUpdate: (payload: RichTextPayload) =>
-            setNodes((inner) => inner.map((ni: any) => (ni.id === id ? { ...ni, data: {
-                  ...(ni.data as BlockData),
-                  contentJson: ensureJsonContent(payload.json),
-                  cachedHTML: sanitizeAndSave(payload.html),
-                  schemaVersion: CURRENT_SCHEMA_VERSION,
-                } } : ni))),
+            setNodes((inner) => inner.map((ni: any) => {
+              if (ni.id === id) {
+                const json = ensureJsonContent(payload.json)
+                const html = sanitizeAndSave(payload.html)
+                // Recompute content helpers on content change
+                const contentPreview = extractPreview(json)
+                const contentType = detectContentType(json)
+                const contentHash = computeContentHashSync(json)
+                return {
+                  ...ni,
+                  data: {
+                    ...(ni.data as BlockData),
+                    contentJson: json,
+                    cachedHTML: html,
+                    schemaVersion: CURRENT_SCHEMA_VERSION,
+                    contentPreview,
+                    contentType,
+                    contentHash,
+                  }
+                }
+              }
+              return ni
+            })),
           onContentCommit: () => {
-            emitChange({ type: 'content.commit', blockId: id })
+            // Get current block data to include in event
+            const currentNode = nodesRef.current.find(n => n.id === id)
+            const currentData = currentNode?.data as BlockData | undefined
+            emitChange({
+              type: 'content.commit',
+              blockId: id,
+              canonicalName: currentData?.canonicalName,
+              contentHash: currentData?.contentHash,
+              contentPreview: currentData?.contentPreview,
+              contentType: currentData?.contentType,
+            })
           },
           onAdd: (initialContent?: RichTextPayload) => blockOps.addBelow(id, initialContent),
           onAddMultiple: (payloads: RichTextPayload[]) => blockOps.addMultipleBelow(id, payloads),
@@ -537,6 +615,20 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
       return syncContainers([...updated, wired]) as Node[]
     })
+
+    // Emit block.create event
+    emitChange({
+      type: 'block.create',
+      blockId: id,
+      canonicalName,
+      stackId: block.stackId,
+      stackIndex,
+      contentPreview,
+      contentType,
+      contentHash,
+    })
+
+    return { id, canonicalName }
   }, [blockOps, handleHeightChange, handleSlashCommand, syncContainers, emitChange])
 
   // Load blocks imperatively (replaces all blocks, used for canvas load)
@@ -570,12 +662,20 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
     // 2. Pre-create container nodes with saved positions and grouping info
     const preCreatedContainers: Node[] = Array.from(containerData).map(([id, data]) => {
+      // Get canonical name from first block in this stack or generate one
+      const firstBlockInStack = blocks.find(b => b.stackId === id)
+      let containerCanonicalName = firstBlockInStack?.containerCanonicalName
+      if (!containerCanonicalName) {
+        containerCanonicalName = generateCanonicalName('stack', id)
+      }
+
       const container: Node = {
         id,
         type: 'stackContainer',
         position: data.position,
         style: { width: opts.blockWidth + 8 },
         data: {
+          canonicalName: containerCanonicalName,
           stackId: id,
           width: opts.blockWidth + 8,
           manualWidth: undefined,
@@ -588,7 +688,28 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       return container
     })
 
-    // 3. Create nodes from blocks
+    // 3. Clear and rebuild canonical name registry
+    canonicalNameRegistryRef.current.clear()
+
+    // Register container canonical names
+    preCreatedContainers.forEach(container => {
+      const canonicalName = (container.data as StackContainerData).canonicalName
+      if (canonicalName) {
+        try {
+          canonicalNameRegistryRef.current.register(canonicalName, container.id, 'stack')
+        } catch (err: any) {
+          console.error(`📦 Stack Editor: Canonical name conflict for container "${canonicalName}":`, err.message)
+          // Auto-generate unique name as fallback
+          const uniqueName = canonicalNameRegistryRef.current.generateUniqueName(canonicalName)
+          canonicalNameRegistryRef.current.register(uniqueName, container.id, 'stack')
+          // Update container data with new name
+          ;(container.data as StackContainerData).canonicalName = uniqueName
+          console.warn(`📦 Stack Editor: Auto-resolved container conflict with name "${uniqueName}"`)
+        }
+      }
+    })
+
+    // 4. Create nodes from blocks
     const created: Node[] = blocks.map((blk, idx) => {
       const id = blk.id ?? nextBlockId()
       if (!nodeRefsMap.current[id]) nodeRefsMap.current[id] = { current: null }
@@ -597,15 +718,52 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       const y = blk.position?.y ?? (100 + idx * 28)
 
       const payload = resolvePayload(blk)
+
+      // Generate or use provided canonical name
+      let canonicalName = blk.canonicalName
+      if (!canonicalName) {
+        canonicalName = generateCanonicalName('block', id)
+        console.warn(`📦 Stack Editor: Generated canonical name "${canonicalName}" for block "${id}" (missing on load)`)
+      }
+
+      // Register canonical name (will throw if conflict)
+      try {
+        canonicalNameRegistryRef.current.register(canonicalName, id, 'block')
+      } catch (err: any) {
+        console.error(`📦 Stack Editor: Canonical name conflict for "${canonicalName}":`, err.message)
+        // Auto-generate unique name as fallback
+        canonicalName = canonicalNameRegistryRef.current.generateUniqueName(canonicalName)
+        canonicalNameRegistryRef.current.register(canonicalName, id, 'block')
+        console.warn(`📦 Stack Editor: Auto-resolved conflict with name "${canonicalName}"`)
+      }
+
+      // Compute or validate content helpers
+      let contentPreview = blk.contentPreview
+      let contentType = blk.contentType
+      let contentHash = blk.contentHash
+
+      // Recompute if missing or potentially stale (no version check for now, always trust provided values)
+      if (!contentPreview || !contentType || !contentHash) {
+        contentPreview = extractPreview(payload.json)
+        contentType = detectContentType(payload.json)
+        contentHash = computeContentHashSync(payload.json)
+        console.warn(`📦 Stack Editor: Recomputed content helpers for block "${canonicalName}" (missing on load)`)
+      }
+
       const data: BlockData = {
+        canonicalName,
         contentJson: payload.json,
         cachedHTML: payload.html,
         schemaVersion: CURRENT_SCHEMA_VERSION,
+        contentPreview,
+        contentType,
+        contentHash,
         height: 24,
         insertionOrder: idx,
         isBottomNode: idx === blocks.length - 1,
         focusRef: nodeRefsMap.current[id],
         stackId: blk.stackId,
+        stackIndex: blk.stackIndex,
       }
 
       const node: Node = {
@@ -843,14 +1001,35 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       const y = blk.position?.y ?? (100 + idx * 28)
 
       const payload = resolvePayload(blk)
+
+      // Generate or use provided canonical name
+      const canonicalName = blk.canonicalName ?? generateCanonicalName('block', id)
+
+      // Register canonical name
+      try {
+        canonicalNameRegistryRef.current.register(canonicalName, id, 'block')
+      } catch (err: any) {
+        console.error(`📦 Stack Editor: Canonical name conflict during initialization:`, err.message)
+      }
+
+      // Compute content helpers
+      const contentPreview = blk.contentPreview ?? extractPreview(payload.json)
+      const contentType = blk.contentType ?? detectContentType(payload.json)
+      const contentHash = blk.contentHash ?? computeContentHashSync(payload.json)
+
       const data: BlockData = {
+        canonicalName,
         contentJson: payload.json,
         cachedHTML: payload.html,
         schemaVersion: CURRENT_SCHEMA_VERSION,
+        contentPreview,
+        contentType,
+        contentHash,
         height: 24,
         insertionOrder: idx,
         isBottomNode: idx === initial.length - 1,
         focusRef: nodeRefsMap.current[id],
+        stackIndex: blk.stackIndex,
       }
 
       // Build node with position and optional parent/extent
@@ -1289,6 +1468,248 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     [setNodes]
   )
 
+  // NEW API: Canonical name operations
+  const findBlockByCanonical = useCallback((name: string): InitialBlock | null => {
+    const id = canonicalNameRegistryRef.current.resolve(name)
+    if (!id) return null
+
+    const node = nodesRef.current.find(n => n.id === id)
+    if (!node || node.type !== 'block') return null
+
+    const data = node.data as BlockData
+    return {
+      id: node.id,
+      canonicalName: data.canonicalName,
+      contentJson: data.contentJson,
+      html: data.cachedHTML,
+      contentPreview: data.contentPreview,
+      contentType: data.contentType,
+      contentHash: data.contentHash,
+      position: node.position,
+      parentId: node.parentId,
+      extent: node.extent === 'parent' ? 'parent' : undefined,
+      stackId: data.stackId,
+      stackIndex: data.stackIndex,
+    }
+  }, [])
+
+  const findStackByCanonical = useCallback((name: string): string | null => {
+    // Look through containers for matching canonical name
+    const container = nodesRef.current.find(
+      n => n.type === 'stackContainer' && (n.data as any)?.canonicalName === name
+    )
+    return container?.id ?? null
+  }, [])
+
+  const renameCanonical = useCallback((args: { from: string; to: string }) => {
+    const { from, to } = args
+
+    // Rename in registry (will throw if conflict)
+    canonicalNameRegistryRef.current.rename(from, to)
+
+    // Update block data
+    setNodes(prev => prev.map(n => {
+      if (n.type === 'block' && (n.data as BlockData).canonicalName === from) {
+        return {
+          ...n,
+          data: {
+            ...(n.data as BlockData),
+            canonicalName: to,
+          }
+        }
+      }
+      return n
+    }))
+
+    // Emit rename event
+    emitChange({
+      type: 'block.rename',
+      previousName: from,
+      newName: to,
+      canonicalName: to,
+    })
+  }, [emitChange, setNodes])
+
+  const updateBlockContent = useCallback((args: { canonicalName: string; contentJson: any }) => {
+    const { canonicalName, contentJson } = args
+    const id = canonicalNameRegistryRef.current.resolve(canonicalName)
+
+    if (!id) {
+      throw new Error(`Block not found: ${canonicalName}`)
+    }
+
+    const json = ensureJsonContent(contentJson)
+    const html = sanitizeAndSave(jsonToHtml(json))
+
+    // Recompute content helpers
+    const contentPreview = extractPreview(json)
+    const contentType = detectContentType(json)
+    const contentHash = computeContentHashSync(json)
+
+    setNodes(prev => prev.map(n => {
+      if (n.id === id) {
+        return {
+          ...n,
+          data: {
+            ...(n.data as BlockData),
+            contentJson: json,
+            cachedHTML: html,
+            contentPreview,
+            contentType,
+            contentHash,
+          }
+        }
+      }
+      return n
+    }))
+
+    // Emit content update event
+    emitChange({
+      type: 'block.content.update',
+      blockId: id,
+      canonicalName,
+      contentHash,
+      contentPreview,
+      contentType,
+    })
+  }, [emitChange, setNodes])
+
+  const createStack = useCallback((args: { title?: string; canonicalName?: string; position?: { x: number; y: number } }): { stackId: string; canonicalName: string } => {
+    const stackId = nextStackId(nodesRef.current)
+    const canonicalName = args.canonicalName ?? generateCanonicalName('stack', stackId)
+
+    // Register canonical name for stack
+    canonicalNameRegistryRef.current.register(canonicalName, stackId, 'stack')
+
+    const position = args.position ?? { x: 100, y: 100 }
+
+    const container: Node = {
+      id: stackId,
+      type: 'stackContainer',
+      position,
+      style: { width: opts.blockWidth + 8 },
+      data: {
+        canonicalName,
+        stackId,
+        width: opts.blockWidth + 8,
+        manualWidth: undefined,
+        isDragging: false,
+        title: args.title,
+      },
+    }
+
+    setNodes(prev => syncContainers([...prev, container]) as Node[])
+
+    // Emit stack.create event
+    emitChange({
+      type: 'stack.create',
+      stackId,
+      canonicalName,
+    })
+
+    return { stackId, canonicalName }
+  }, [opts.blockWidth, emitChange, setNodes, syncContainers])
+
+  const moveBlock = useCallback((args: { canonicalName: string; stackId?: string; index?: number }): { from: { stackId?: string; index?: number }; to: { stackId: string; index: number }; affected: string[] } => {
+    const { canonicalName, stackId: targetStackId, index: targetIndex } = args
+
+    const id = canonicalNameRegistryRef.current.resolve(canonicalName)
+    if (!id) {
+      throw new Error(`Block not found: ${canonicalName}`)
+    }
+
+    const node = nodesRef.current.find(n => n.id === id)
+    if (!node || node.type !== 'block') {
+      throw new Error(`Block not found: ${canonicalName}`)
+    }
+
+    const data = node.data as BlockData
+    const fromStackId = data.stackId
+    const fromIndex = data.stackIndex
+
+    // If no target stack specified, keep current stack
+    const finalStackId = targetStackId ?? fromStackId ?? ''
+
+    // Get blocks in target stack
+    const stackBlocks = nodesRef.current
+      .filter(n => n.type === 'block' && (n.data as BlockData).stackId === finalStackId)
+      .sort((a, b) => ((a.data as BlockData).stackIndex ?? 0) - ((b.data as BlockData).stackIndex ?? 0))
+
+    // Calculate final index (default to end)
+    const finalIndex = targetIndex ?? stackBlocks.length
+
+    // Track affected blocks
+    const affected: string[] = []
+
+    // Update blocks
+    setNodes(prev => prev.map(n => {
+      if (n.type !== 'block') return n
+
+      const blockData = n.data as BlockData
+
+      // Moving block
+      if (n.id === id) {
+        affected.push(blockData.canonicalName)
+        return {
+          ...n,
+          data: {
+            ...blockData,
+            stackId: finalStackId,
+            stackIndex: finalIndex,
+          }
+        }
+      }
+
+      // Reindex blocks in source stack (if different from target)
+      if (fromStackId && blockData.stackId === fromStackId && fromStackId !== finalStackId) {
+        const currentIndex = blockData.stackIndex ?? 0
+        if (currentIndex > (fromIndex ?? 0)) {
+          affected.push(blockData.canonicalName)
+          return {
+            ...n,
+            data: {
+              ...blockData,
+              stackIndex: currentIndex - 1,
+            }
+          }
+        }
+      }
+
+      // Reindex blocks in target stack
+      if (blockData.stackId === finalStackId) {
+        const currentIndex = blockData.stackIndex ?? 0
+        if (currentIndex >= finalIndex && n.id !== id) {
+          affected.push(blockData.canonicalName)
+          return {
+            ...n,
+            data: {
+              ...blockData,
+              stackIndex: currentIndex + 1,
+            }
+          }
+        }
+      }
+
+      return n
+    }))
+
+    // Emit move event
+    emitChange({
+      type: 'block.move',
+      blockId: id,
+      canonicalName,
+      from: { stackId: fromStackId, index: fromIndex },
+      to: { stackId: finalStackId, index: finalIndex },
+      affected,
+    })
+
+    return {
+      from: { stackId: fromStackId, index: fromIndex },
+      to: { stackId: finalStackId, index: finalIndex },
+      affected,
+    }
+  }, [emitChange, setNodes])
+
   return {
     nodes,
     nodeTypes,
@@ -1677,6 +2098,14 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     getBlocks,
     createBlock,
     loadBlocks,
+    // Canonical name operations
+    findBlockByCanonical,
+    findStackByCanonical,
+    renameCanonical,
+    updateBlockContent,
+    // Stack operations
+    createStack,
+    moveBlock,
     expandStack,
     // Grouping APIs
     groupNodes,

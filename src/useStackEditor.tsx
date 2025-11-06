@@ -1714,6 +1714,221 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     return { stackId, canonicalName }
   }, [opts.blockWidth, emitChange, setNodes, syncContainers])
 
+  const duplicateStack = useCallback((args: { canonicalName: string; position?: { x: number; y: number } }): { stackId: string; canonicalName: string; blockIds: string[] } => {
+    // Find source stack by canonical name
+    const sourceStackId = findStackByCanonical(args.canonicalName)
+    if (!sourceStackId) {
+      throw new Error(`Stack not found: ${args.canonicalName}`)
+    }
+
+    const sourceContainer = nodesRef.current.find(n => n.id === sourceStackId)
+    if (!sourceContainer || sourceContainer.type !== 'stackContainer') {
+      throw new Error(`Stack container not found: ${args.canonicalName}`)
+    }
+
+    const sourceContainerData = sourceContainer.data as StackContainerData
+    const sourceContainerDataAny = sourceContainer.data as any
+
+    // Find all blocks in the source stack
+    const sourceBlocks = nodesRef.current
+      .filter(n => n.type === 'block' && (n.data as BlockData).stackId === sourceStackId)
+      .sort((a, b) => ((a.data as BlockData).stackIndex ?? 0) - ((b.data as BlockData).stackIndex ?? 0))
+
+    // Begin transaction for atomicity
+    beginTransaction('duplicateStack')
+
+    try {
+      // Generate unique canonical name for the new stack
+      const baseStackName = args.canonicalName + '-copy'
+      const newStackCanonicalName = canonicalNameRegistryRef.current.generateUniqueName(baseStackName)
+
+      // Calculate position for duplicate (offset if not provided)
+      const newPosition = args.position ?? {
+        x: sourceContainer.position.x + 50,
+        y: sourceContainer.position.y + 50
+      }
+
+      // Create new stack container
+      const newStackId = nextStackId(nodesRef.current)
+      canonicalNameRegistryRef.current.register(newStackCanonicalName, newStackId, 'stack')
+
+      const newContainer: Node = {
+        id: newStackId,
+        type: 'stackContainer',
+        position: newPosition,
+        style: { width: sourceContainer.style?.width ?? opts.blockWidth + 8 },
+        data: {
+          canonicalName: newStackCanonicalName,
+          stackId: newStackId,
+          width: sourceContainerDataAny.width ?? opts.blockWidth + 8,
+          manualWidth: sourceContainerDataAny.manualWidth,
+          isDragging: false,
+          title: sourceContainerData.title,
+        },
+      }
+
+      // Preserve grouping if original is grouped
+      if (sourceContainer.parentId) {
+        newContainer.parentId = sourceContainer.parentId
+        newContainer.extent = sourceContainer.extent
+      }
+
+      // Add the new container
+      setNodes(prev => syncContainers([...prev, newContainer]) as Node[])
+
+      // Emit stack.create event
+      emitChange({
+        type: 'stack.create',
+        stackId: newStackId,
+        canonicalName: newStackCanonicalName,
+      })
+
+      // Duplicate all blocks in the stack
+      const newBlockIds: string[] = []
+
+      sourceBlocks.forEach((sourceBlock) => {
+        const sourceBlockData = sourceBlock.data as BlockData
+
+        // Generate unique canonical name for the new block
+        const sourceBlockCanonical = sourceBlockData.canonicalName
+        const baseBlockName = sourceBlockCanonical + '-copy'
+        const newBlockCanonicalName = canonicalNameRegistryRef.current.generateUniqueName(baseBlockName)
+
+        // Create new block with duplicated content
+        const newBlockId = nextBlockId()
+        if (!nodeRefsMap.current[newBlockId]) nodeRefsMap.current[newBlockId] = { current: null }
+
+        // Register canonical name
+        canonicalNameRegistryRef.current.register(newBlockCanonicalName, newBlockId, 'block')
+
+        // Get current max insertion order
+        const maxOrder = nodesRef.current
+          .filter(n => n.type === 'block')
+          .reduce((max, n: any) => Math.max(max, (n.data as BlockData).insertionOrder ?? 0), -1)
+
+        // Create block data with duplicated content
+        const newBlockData: BlockData = {
+          canonicalName: newBlockCanonicalName,
+          contentJson: sourceBlockData.contentJson,
+          cachedHTML: sourceBlockData.cachedHTML,
+          schemaVersion: sourceBlockData.schemaVersion,
+          contentPreview: sourceBlockData.contentPreview,
+          contentType: sourceBlockData.contentType,
+          contentHash: sourceBlockData.contentHash,
+          height: sourceBlockData.height ?? 24,
+          insertionOrder: maxOrder + 1 + newBlockIds.length,
+          isBottomNode: false,
+          focusRef: nodeRefsMap.current[newBlockId],
+          stackId: newStackId,  // Reference new stack
+          stackIndex: sourceBlockData.stackIndex,
+        }
+
+        // Create new block node
+        const newBlockNode: Node = {
+          id: newBlockId,
+          type: 'block',
+          position: sourceBlock.position,
+          dragHandle: '.drag-handle',
+          data: newBlockData,
+        }
+
+        // Preserve grouping if original block is grouped
+        if (sourceBlock.parentId) {
+          newBlockNode.parentId = sourceBlock.parentId
+        }
+        if (sourceBlock.extent) {
+          newBlockNode.extent = sourceBlock.extent
+        }
+
+        // Wire up callbacks
+        const wiredBlock = {
+          ...newBlockNode,
+          data: {
+            ...newBlockData,
+            onContentUpdate: (payload: RichTextPayload) =>
+              setNodes((inner) => inner.map((ni: any) => {
+                if (ni.id === newBlockId) {
+                  const json = ensureJsonContent(payload.json)
+                  const html = sanitizeAndSave(payload.html)
+                  const contentPreview = extractPreview(json)
+                  const contentType = detectContentType(json)
+                  const contentHash = computeContentHashSync(json)
+                  return {
+                    ...ni,
+                    data: {
+                      ...(ni.data as BlockData),
+                      contentJson: json,
+                      cachedHTML: html,
+                      schemaVersion: CURRENT_SCHEMA_VERSION,
+                      contentPreview,
+                      contentType,
+                      contentHash,
+                    }
+                  }
+                }
+                return ni
+              })),
+            onContentCommit: () => {
+              const currentNode = nodesRef.current.find(n => n.id === newBlockId)
+              const currentData = currentNode?.data as BlockData | undefined
+              emitChange({
+                type: 'content.commit',
+                blockId: newBlockId,
+                canonicalName: currentData?.canonicalName,
+                contentHash: currentData?.contentHash,
+                contentPreview: currentData?.contentPreview,
+                contentType: currentData?.contentType,
+              })
+            },
+            onAdd: (initialContent?: RichTextPayload) => blockOps.addBelow(newBlockId, initialContent),
+            onAddMultiple: (payloads: RichTextPayload[]) => blockOps.addMultipleBelow(newBlockId, payloads),
+            onHeightChange: handleHeightChange,
+            onTabNext: (id: string) => tabHandlers.current.handleTabNext?.(id),
+            onTabPrev: (id: string) => tabHandlers.current.handleTabPrev?.(id),
+            onArrowUp: (id: string) => tabHandlers.current.handleArrowUp?.(id),
+            onArrowDown: (id: string) => tabHandlers.current.handleArrowDown?.(id),
+            onSlashCommand: handleSlashCommand,
+            onDelete: blockOps.handleDelete,
+            onSplit: blockOps.handleSplit,
+            onMergeUp: blockOps.handleMergeUp,
+          } as BlockData,
+        }
+
+        // Add the new block
+        setNodes((prevNodes) => {
+          const updated = prevNodes.map((n: any) =>
+            n.type === 'block'
+              ? { ...n, data: { ...n.data, isBottomNode: false } }
+              : n
+          )
+          return syncContainers([...updated, wiredBlock]) as Node[]
+        })
+
+        // Emit block.create event
+        emitChange({
+          type: 'block.create',
+          blockId: newBlockId,
+          canonicalName: newBlockCanonicalName,
+        })
+
+        newBlockIds.push(newBlockId)
+      })
+
+      // Commit transaction
+      commitTransaction('duplicateStack')
+
+      return {
+        stackId: newStackId,
+        canonicalName: newStackCanonicalName,
+        blockIds: newBlockIds
+      }
+    } catch (error) {
+      // Abort transaction on error
+      abortTransaction()
+      throw error
+    }
+  }, [findStackByCanonical, beginTransaction, commitTransaction, abortTransaction, opts.blockWidth, emitChange, setNodes, syncContainers, blockOps, handleHeightChange, handleSlashCommand])
+
   const moveBlock = useCallback((args: { canonicalName: string; stackId?: string; index?: number }): { from: { stackId?: string; index?: number }; to: { stackId: string; index: number }; affected: string[] } => {
     const { canonicalName, stackId: targetStackId, index: targetIndex } = args
 
@@ -2215,6 +2430,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     updateBlockContent,
     // Stack operations
     createStack,
+    duplicateStack,
     moveBlock,
     expandStack,
     // Grouping APIs

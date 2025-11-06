@@ -204,6 +204,7 @@ export type StackEditorHookResult = {
   updateBlockContent: (args: { canonicalName: string; contentJson: JSONContent }) => void
   // Stack operations
   createStack: (args: { title?: string; canonicalName?: string; position?: { x: number; y: number } }) => { stackId: string; canonicalName: string }
+  duplicateStack: (args: { canonicalName: string; position?: { x: number; y: number } }) => { stackId: string; canonicalName: string; blockIds: string[] }
   moveBlock: (args: { canonicalName: string; stackId?: string; index?: number }) => { from: { stackId?: string; index?: number }; to: { stackId: string; index: number }; affected: string[] }
   expandStack: (stackId: string) => void
   // Persistence

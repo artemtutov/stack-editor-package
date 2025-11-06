@@ -92,6 +92,7 @@ function StackDemo() {
         html: '<p>🎯 I am in a grouped stack!</p>',
         position: { x: 20, y: 60 }, // relative to container
         stackId: 'grouped-stack-container',
+        containerCanonicalName: 'demo:grouped-stack',
         containerPosition: { x: 600, y: 60 }, // container position relative to group
         containerParentId: 'test-group', // Container is grouped!
         containerExtent: 'parent'
@@ -102,6 +103,7 @@ function StackDemo() {
         html: '<p>🎯 Me too - save & reload to test!</p>',
         position: { x: 20, y: 130 }, // relative to container
         stackId: 'grouped-stack-container',
+        containerCanonicalName: 'demo:grouped-stack',
         containerPosition: { x: 600, y: 60 },
         containerParentId: 'test-group',
         containerExtent: 'parent'
@@ -152,6 +154,45 @@ function StackDemo() {
       console.log('📂 Loaded state:', savedState)
     }
   }, [stackEditor, savedState])
+
+  // Duplicate a stack
+  const handleDuplicate = useCallback(() => {
+    console.log('🔍 Debug: All nodes:', stackEditor.nodes)
+
+    // Find all stack containers
+    const stackContainers = stackEditor.nodes.filter(n => n.type === 'stackContainer')
+    console.log('🔍 Debug: Stack containers found:', stackContainers)
+
+    if (stackContainers.length === 0) {
+      alert('⚠️ No stack containers found! Create a stack first by pressing Enter on a block.')
+      console.warn('⚠️ No stack containers found to duplicate')
+      return
+    }
+
+    // Use first stack container
+    const stackContainer = stackContainers[0]
+    const containerData = stackContainer.data as any
+    const canonicalName = containerData?.canonicalName
+
+    console.log('🔍 Debug: Selected container:', stackContainer)
+    console.log('🔍 Debug: Container data:', containerData)
+    console.log('🔍 Debug: Canonical name:', canonicalName)
+
+    if (!canonicalName) {
+      alert('❌ Stack container has no canonical name!')
+      console.error('❌ No canonical name on container:', stackContainer)
+      return
+    }
+
+    try {
+      const result = stackEditor.duplicateStack({ canonicalName })
+      console.log('✅ Duplicated stack:', result)
+      alert(`✅ Stack duplicated successfully!\nNew stack: ${result.canonicalName}\nNew blocks: ${result.blockIds.length}`)
+    } catch (error) {
+      console.error('❌ Failed to duplicate stack:', error)
+      alert(`❌ Failed to duplicate: ${error}`)
+    }
+  }, [stackEditor])
 
   // Combine stack editor nodes with our test group node
   const allNodes = useMemo(() => {
@@ -266,6 +307,21 @@ function StackDemo() {
               }}
             >
               📂 Load State
+            </button>
+            <button
+              onClick={handleDuplicate}
+              style={{
+                padding: '8px 16px',
+                background: '#f59e0b',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: '600',
+              }}
+            >
+              📋 Duplicate Stack
             </button>
             {savedState && (
               <span style={{ fontSize: '12px', color: '#10b981', alignSelf: 'center', marginLeft: '4px' }}>

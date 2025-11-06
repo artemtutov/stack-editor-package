@@ -1156,6 +1156,72 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       return node as Node
     })
 
+    // Extract container data from initial blocks (mirror loadBlocks logic)
+    const containerData = new Map<string, {
+      canonicalName?: string;
+      position: { x: number; y: number };
+      parentId?: string;
+      extent?: 'parent'
+    }>()
+    initial.forEach(blk => {
+      if (blk.stackId) {
+        if (!containerData.has(blk.stackId)) {
+          containerData.set(blk.stackId, {
+            canonicalName: blk.containerCanonicalName,
+            position: blk.containerPosition || { x: 100, y: 100 },
+            parentId: blk.containerParentId,
+            extent: blk.containerExtent,
+          })
+        }
+      }
+    })
+
+    // Pre-create container nodes with canonical names (mirror loadBlocks:768-793)
+    const preCreatedContainers: Node[] = Array.from(containerData).map(([id, data]) => {
+      let containerCanonicalName = data.canonicalName
+      if (!containerCanonicalName) {
+        containerCanonicalName = generateCanonicalName('stack', id)
+      }
+
+      const container: Node = {
+        id,
+        type: 'stackContainer',
+        position: data.position,
+        style: { width: opts.blockWidth + 8 },
+        data: {
+          canonicalName: containerCanonicalName,
+          stackId: id,
+          width: opts.blockWidth + 8,
+          manualWidth: undefined,
+          isDragging: false,
+        },
+      }
+
+      // Restore container grouping
+      if (data.parentId) container.parentId = data.parentId
+      if (data.extent) container.extent = data.extent
+
+      return container
+    })
+
+    // Register container canonical names (mirror loadBlocks:799-814)
+    preCreatedContainers.forEach(container => {
+      const canonicalName = (container.data as StackContainerData).canonicalName
+      if (canonicalName) {
+        try {
+          canonicalNameRegistryRef.current.register(canonicalName, container.id, 'stack')
+        } catch (err: any) {
+          console.error(`📦 Stack Editor: Canonical name conflict for container "${canonicalName}":`, err.message)
+          // Auto-generate unique name as fallback
+          const uniqueName = canonicalNameRegistryRef.current.generateUniqueName(canonicalName)
+          canonicalNameRegistryRef.current.register(uniqueName, container.id, 'stack')
+          // Update container data with new name
+          ;(container.data as StackContainerData).canonicalName = uniqueName
+          console.warn(`📦 Stack Editor: Auto-resolved container conflict with name "${uniqueName}"`)
+        }
+      }
+    })
+
     // Only auto-stack blocks that don't have explicit positions
     // Blocks with positions (from Canvas clicks/toolbar) should stay standalone
     const blocksWithPositions = created.filter(n => {
@@ -1209,14 +1275,17 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       } as BlockData,
     }))
 
+    // Merge pre-created containers with block nodes before layout
+    const withContainers = [...preCreatedContainers, ...wired]
+
     // Apply layout only to blocks that are actually in a stack
-    let laidOut: Node[] = wired
+    let laidOut: Node[] = withContainers
     if (stackId) {
       // Only apply stack layout if we actually created a stack
-      laidOut = applyLayout(stackId, wired) as Node[]
+      laidOut = applyLayout(stackId, withContainers) as Node[]
     } else {
       // For standalone blocks, just sync containers (no stacking)
-      laidOut = syncContainers(wired) as Node[]
+      laidOut = syncContainers(withContainers) as Node[]
     }
 
     // Inject resize callbacks into containers
@@ -1773,9 +1842,6 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         newContainer.extent = sourceContainer.extent
       }
 
-      // Add the new container
-      setNodes(prev => syncContainers([...prev, newContainer]) as Node[])
-
       // Emit stack.create event
       emitChange({
         type: 'stack.create',
@@ -1785,6 +1851,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
       // Duplicate all blocks in the stack
       const newBlockIds: string[] = []
+      const newBlocks: Node[] = []
 
       sourceBlocks.forEach((sourceBlock) => {
         const sourceBlockData = sourceBlock.data as BlockData
@@ -1823,21 +1890,16 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
           stackIndex: sourceBlockData.stackIndex,
         }
 
-        // Create new block node
+        // Create new block node with absolute position based on new container position
         const newBlockNode: Node = {
           id: newBlockId,
           type: 'block',
-          position: sourceBlock.position,
+          position: {
+            x: newPosition.x + 4,  // Container X + padding
+            y: newPosition.y + sourceBlock.position.y  // Container Y + block's relative Y
+          },
           dragHandle: '.drag-handle',
           data: newBlockData,
-        }
-
-        // Preserve grouping if original block is grouped
-        if (sourceBlock.parentId) {
-          newBlockNode.parentId = sourceBlock.parentId
-        }
-        if (sourceBlock.extent) {
-          newBlockNode.extent = sourceBlock.extent
         }
 
         // Wire up callbacks
@@ -1894,15 +1956,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
           } as BlockData,
         }
 
-        // Add the new block
-        setNodes((prevNodes) => {
-          const updated = prevNodes.map((n: any) =>
-            n.type === 'block'
-              ? { ...n, data: { ...n.data, isBottomNode: false } }
-              : n
-          )
-          return syncContainers([...updated, wiredBlock]) as Node[]
-        })
+        // Collect the new block
+        newBlocks.push(wiredBlock)
 
         // Emit block.create event
         emitChange({
@@ -1912,6 +1967,16 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         })
 
         newBlockIds.push(newBlockId)
+      })
+
+      // Add container and all blocks together in a single atomic update
+      setNodes((prevNodes) => {
+        const updated = prevNodes.map((n: any) =>
+          n.type === 'block'
+            ? { ...n, data: { ...n.data, isBottomNode: false } }
+            : n
+        )
+        return syncContainers([...updated, newContainer, ...newBlocks]) as Node[]
       })
 
       // Commit transaction

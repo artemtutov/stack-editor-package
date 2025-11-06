@@ -59,9 +59,36 @@ export function validateNotReserved(name: string): void {
  * @param id Optional ID to use, otherwise generates random suffix
  */
 export function generateCanonicalName(prefix: 'block' | 'stack', id?: string): string {
-  const shortId = id
-    ? id.replace(/-/g, '').slice(0, 8) // Remove hyphens, take first 8 chars
-    : Math.random().toString(36).substring(2, 10) // Random 8 char string
+  let shortId: string
+
+  if (!id) {
+    // No ID provided: generate random suffix
+    shortId = Math.random().toString(36).substring(2, 10)
+  } else if (prefix === 'stack') {
+    // For stacks: extract unique part after underscore (e.g., container_a3f4b2c1 -> a3f4b2c1)
+    // This works with new UUID-based stack IDs and ensures uniqueness
+    const parts = id.split('_')
+    if (parts.length > 1 && parts[parts.length - 1].length > 0) {
+      // Use the last part after underscore (the UUID portion)
+      shortId = parts[parts.length - 1].replace(/-/g, '').substring(0, 12)
+    } else {
+      // Fallback: hash the ID or use a unique portion
+      // Simple hash: take chars from multiple positions for better distribution
+      const cleaned = id.replace(/[^a-z0-9]/gi, '')
+      if (cleaned.length >= 8) {
+        // Mix characters from beginning, middle, and end
+        const start = cleaned.substring(0, 3)
+        const mid = cleaned.substring(Math.floor(cleaned.length / 2), Math.floor(cleaned.length / 2) + 3)
+        const end = cleaned.substring(cleaned.length - 2)
+        shortId = (start + mid + end).substring(0, 12)
+      } else {
+        shortId = cleaned.padEnd(8, '0')
+      }
+    }
+  } else {
+    // For blocks: use first 8 chars (existing behavior)
+    shortId = id.replace(/-/g, '').slice(0, 8)
+  }
 
   return prefix === 'block' ? `blk:${shortId}` : `stack:${shortId}`
 }

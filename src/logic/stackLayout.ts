@@ -259,6 +259,8 @@ export function syncStackContainers(
         },
         data: {
           // Preserve existing data (especially canonicalName) while updating dimensions
+          // Note: Canonical names are registered in useBlockOperations when containers
+          // are created. syncContainers only preserves existing names, it doesn't register new ones.
           ...(existingContainer?.data || {}),
           width: containerWidth,
           height: containerHeight,

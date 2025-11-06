@@ -56,11 +56,13 @@ function StackDemo() {
       // Blocks outside group (left side) - for dragging in
       {
         id: 'block-outside-1',
+        canonicalName: 'demo:outside-1',
         html: '<p><strong>Drag me into the group →</strong></p>',
         position: { x: 50, y: 250 }
       },
       {
         id: 'block-outside-2',
+        canonicalName: 'demo:outside-2',
         html: '<p>Or drag me into the group →</p>',
         position: { x: 50, y: 320 }
       },
@@ -68,6 +70,7 @@ function StackDemo() {
       // Blocks already inside group (grouped)
       {
         id: 'block-inside-1',
+        canonicalName: 'demo:inside-1',
         html: '<p>✅ I am grouped! Drag me out.</p>',
         position: { x: 20, y: 60 }, // relative to group
         parentId: 'test-group',
@@ -75,6 +78,7 @@ function StackDemo() {
       },
       {
         id: 'block-inside-2',
+        canonicalName: 'demo:inside-2',
         html: '<p>✅ Me too! Try moving around.</p>',
         position: { x: 20, y: 130 }, // relative to group
         parentId: 'test-group',
@@ -84,6 +88,7 @@ function StackDemo() {
       // Blocks in a GROUPED STACK (testing container grouping persistence)
       {
         id: 'grouped-stack-block-1',
+        canonicalName: 'demo:grouped-1',
         html: '<p>🎯 I am in a grouped stack!</p>',
         position: { x: 20, y: 60 }, // relative to container
         stackId: 'grouped-stack-container',
@@ -93,6 +98,7 @@ function StackDemo() {
       },
       {
         id: 'grouped-stack-block-2',
+        canonicalName: 'demo:grouped-2',
         html: '<p>🎯 Me too - save & reload to test!</p>',
         position: { x: 20, y: 130 }, // relative to container
         stackId: 'grouped-stack-container',
@@ -104,6 +110,7 @@ function StackDemo() {
       // Another block far away for general testing
       {
         id: 'block-far',
+        canonicalName: 'demo:far',
         html: '<p>🎯 Free block - test stacking!</p>',
         position: { x: 750, y: 300 }
       }

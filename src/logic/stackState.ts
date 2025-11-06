@@ -14,24 +14,22 @@ export function nextBlockId(): string {
 
 /**
  * Generate unique stack/container IDs
+ * Uses UUID-based IDs to ensure uniqueness and avoid canonical name collisions
  */
 let globalStackCounter = 0
 export function nextStackId(allNodes?: Node[]): string {
-  if (allNodes && allNodes.length > 0) {
-    // Calculate the maximum existing container number
-    const maxStackNum = Math.max(
-      -1,
-      ...allNodes
-        .filter((n: any) => n.data?.stackId && typeof n.data.stackId === 'string')
-        .map((n: any) => {
-          const match = n.data.stackId.match(/^container_(\d+)$/)
-          return match ? parseInt(match[1], 10) : -1
-        })
-    )
-    return `container_${maxStackNum + 1}`
+  const globalCrypto = typeof globalThis !== 'undefined' ? (globalThis.crypto as Crypto | undefined) : undefined
+
+  if (globalCrypto?.randomUUID) {
+    // Use UUID but shorten it for readability: container_a3f4b2c1
+    const uuid = globalCrypto.randomUUID()
+    const shortId = uuid.replace(/-/g, '').substring(0, 8)
+    return `container_${shortId}`
   }
-  // Fallback to global counter if no nodes provided
-  return `container_${globalStackCounter++}`
+
+  // Fallback: generate random alphanumeric ID
+  const randomId = Math.random().toString(36).substring(2, 10)
+  return `container_${randomId}_${globalStackCounter++}`
 }
 
 /**

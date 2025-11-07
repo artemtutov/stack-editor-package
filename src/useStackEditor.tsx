@@ -14,7 +14,7 @@ import {
   MarkerType,
   ConnectionMode,
 } from '@xyflow/react'
-import type { Editor } from '@tiptap/core'
+import type { Editor, JSONContent } from '@tiptap/core'
 import NotionBlock from './renderers/NotionBlock'
 import StackContainer from './renderers/StackContainer'
 import SlashMenu, { type SlashMenuItem } from './renderers/SlashMenu'
@@ -1994,6 +1994,200 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     }
   }, [findStackByCanonical, beginTransaction, commitTransaction, abortTransaction, opts.blockWidth, emitChange, setNodes, syncContainers, blockOps, handleHeightChange, handleSlashCommand])
 
+  const createStackWithBlocks = useCallback((args: {
+    title?: string;
+    canonicalName?: string;
+    position?: { x: number; y: number };
+    blocks: Array<{
+      contentJson: JSONContent;
+      canonicalName?: string;
+    }>;
+  }): { stackId: string; canonicalName: string; blockIds: string[] } => {
+    // Begin transaction for atomicity
+    beginTransaction('createStackWithBlocks')
+
+    try {
+      // Create stack container
+      const stackId = nextStackId(nodesRef.current)
+      const canonicalName = args.canonicalName ?? generateCanonicalName('stack', stackId)
+
+      // Register canonical name for stack
+      canonicalNameRegistryRef.current.register(canonicalName, stackId, 'stack')
+
+      const position = args.position ?? { x: 100, y: 100 }
+
+      const container: Node = {
+        id: stackId,
+        type: 'stackContainer',
+        position,
+        style: { width: opts.blockWidth + 8 },
+        data: {
+          canonicalName,
+          stackId,
+          width: opts.blockWidth + 8,
+          manualWidth: undefined,
+          isDragging: false,
+          title: args.title,
+        },
+      }
+
+      // Emit stack.create event
+      emitChange({
+        type: 'stack.create',
+        stackId,
+        canonicalName,
+      })
+
+      // Create all blocks
+      const newBlockIds: string[] = []
+      const newBlocks: Node[] = []
+
+      // Get current max insertion order
+      const maxOrder = nodesRef.current
+        .filter(n => n.type === 'block')
+        .reduce((max, n: any) => Math.max(max, (n.data as BlockData).insertionOrder ?? 0), -1)
+
+      args.blocks.forEach((blockSpec, index) => {
+        const newBlockId = nextBlockId()
+        if (!nodeRefsMap.current[newBlockId]) nodeRefsMap.current[newBlockId] = { current: null }
+
+        // Generate or use provided canonical name
+        const blockCanonicalName = blockSpec.canonicalName ?? `${canonicalName}::${index + 1}`
+
+        // Ensure unique canonical name
+        const uniqueBlockCanonicalName = canonicalNameRegistryRef.current.generateUniqueName(blockCanonicalName)
+
+        // Register canonical name
+        canonicalNameRegistryRef.current.register(uniqueBlockCanonicalName, newBlockId, 'block')
+
+        // Process content
+        const json = ensureJsonContent(blockSpec.contentJson)
+        const html = sanitizeAndSave(jsonToHtml(json))
+        const contentPreview = extractPreview(json)
+        const contentType = detectContentType(json)
+        const contentHash = computeContentHashSync(json)
+
+        // Create block data
+        const newBlockData: BlockData = {
+          canonicalName: uniqueBlockCanonicalName,
+          contentJson: json,
+          cachedHTML: html,
+          schemaVersion: CURRENT_SCHEMA_VERSION,
+          contentPreview,
+          contentType,
+          contentHash,
+          height: 24,
+          insertionOrder: maxOrder + 1 + index,
+          isBottomNode: false,
+          focusRef: nodeRefsMap.current[newBlockId],
+          stackId: stackId,
+          stackIndex: index,
+        }
+
+        // Create new block node with position relative to container
+        const newBlockNode: Node = {
+          id: newBlockId,
+          type: 'block',
+          position: {
+            x: position.x + 4,  // Container X + padding
+            y: position.y + 32 + (index * 28)  // Container Y + header + stacked blocks
+          },
+          dragHandle: '.drag-handle',
+          data: newBlockData,
+        }
+
+        // Wire up callbacks (same pattern as duplicateStack)
+        const wiredBlock = {
+          ...newBlockNode,
+          data: {
+            ...newBlockData,
+            onContentUpdate: (payload: RichTextPayload) =>
+              setNodes((inner) => inner.map((ni: any) => {
+                if (ni.id === newBlockId) {
+                  const json = ensureJsonContent(payload.json)
+                  const html = sanitizeAndSave(payload.html)
+                  const contentPreview = extractPreview(json)
+                  const contentType = detectContentType(json)
+                  const contentHash = computeContentHashSync(json)
+                  return {
+                    ...ni,
+                    data: {
+                      ...(ni.data as BlockData),
+                      contentJson: json,
+                      cachedHTML: html,
+                      schemaVersion: CURRENT_SCHEMA_VERSION,
+                      contentPreview,
+                      contentType,
+                      contentHash,
+                    }
+                  }
+                }
+                return ni
+              })),
+            onContentCommit: () => {
+              const currentNode = nodesRef.current.find(n => n.id === newBlockId)
+              const currentData = currentNode?.data as BlockData | undefined
+              emitChange({
+                type: 'content.commit',
+                blockId: newBlockId,
+                canonicalName: currentData?.canonicalName,
+                contentHash: currentData?.contentHash,
+                contentPreview: currentData?.contentPreview,
+                contentType: currentData?.contentType,
+              })
+            },
+            onAdd: (initialContent?: RichTextPayload) => blockOps.addBelow(newBlockId, initialContent),
+            onAddMultiple: (payloads: RichTextPayload[]) => blockOps.addMultipleBelow(newBlockId, payloads),
+            onHeightChange: handleHeightChange,
+            onTabNext: (id: string) => tabHandlers.current.handleTabNext?.(id),
+            onTabPrev: (id: string) => tabHandlers.current.handleTabPrev?.(id),
+            onArrowUp: (id: string) => tabHandlers.current.handleArrowUp?.(id),
+            onArrowDown: (id: string) => tabHandlers.current.handleArrowDown?.(id),
+            onSlashCommand: handleSlashCommand,
+            onDelete: blockOps.handleDelete,
+            onSplit: blockOps.handleSplit,
+            onMergeUp: blockOps.handleMergeUp,
+          } as BlockData,
+        }
+
+        // Collect the new block
+        newBlocks.push(wiredBlock)
+
+        // Emit block.create event
+        emitChange({
+          type: 'block.create',
+          blockId: newBlockId,
+          canonicalName: uniqueBlockCanonicalName,
+        })
+
+        newBlockIds.push(newBlockId)
+      })
+
+      // Add container and all blocks together in a single atomic update
+      setNodes((prevNodes) => {
+        const updated = prevNodes.map((n: any) =>
+          n.type === 'block'
+            ? { ...n, data: { ...n.data, isBottomNode: false } }
+            : n
+        )
+        return syncContainers([...updated, container, ...newBlocks]) as Node[]
+      })
+
+      // Commit transaction
+      commitTransaction('createStackWithBlocks')
+
+      return {
+        stackId,
+        canonicalName,
+        blockIds: newBlockIds
+      }
+    } catch (error) {
+      // Abort transaction on error
+      abortTransaction()
+      throw error
+    }
+  }, [beginTransaction, commitTransaction, abortTransaction, opts.blockWidth, emitChange, setNodes, syncContainers, blockOps, handleHeightChange, handleSlashCommand])
+
   const moveBlock = useCallback((args: { canonicalName: string; stackId?: string; index?: number }): { from: { stackId?: string; index?: number }; to: { stackId: string; index: number }; affected: string[] } => {
     const { canonicalName, stackId: targetStackId, index: targetIndex } = args
 
@@ -2495,6 +2689,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     updateBlockContent,
     // Stack operations
     createStack,
+    createStackWithBlocks,
     duplicateStack,
     moveBlock,
     expandStack,

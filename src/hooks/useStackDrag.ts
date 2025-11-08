@@ -59,6 +59,58 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
     insertionIndex: -1,
   })
 
+  type IndicatorState = {
+    show: boolean
+    position: { x: number; y: number; width: number }
+    canvasPosition: { x: number; y: number }
+    targetStackId: string | null
+    insertionIndex: number
+  }
+
+  const indicatorStateRef = useRef<IndicatorState>(dropIndicator)
+  const pendingIndicatorRef = useRef<IndicatorState | null>(null)
+  const rafIdRef = useRef<number | null>(null)
+  const INDICATOR_EPS = 0.5
+
+  const shouldUpdateIndicator = (prev: IndicatorState, next: IndicatorState) => {
+    if (prev.show !== next.show) return true
+    if (prev.targetStackId !== next.targetStackId) return true
+    if (prev.insertionIndex !== next.insertionIndex) return true
+    if (Math.abs(prev.position.x - next.position.x) > INDICATOR_EPS) return true
+    if (Math.abs(prev.position.y - next.position.y) > INDICATOR_EPS) return true
+    if (Math.abs(prev.position.width - next.position.width) > 1) return true
+    return false
+  }
+
+  const scheduleIndicatorUpdate = (next: IndicatorState, immediate = false) => {
+    const prev = indicatorStateRef.current
+    if (!shouldUpdateIndicator(prev, next) && !immediate) return
+
+    if (immediate) {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current)
+        rafIdRef.current = null
+      }
+      indicatorStateRef.current = next
+      setDropIndicator(next)
+      return
+    }
+
+    pendingIndicatorRef.current = next
+    if (rafIdRef.current === null) {
+      rafIdRef.current = requestAnimationFrame(() => {
+        rafIdRef.current = null
+        const candidate = pendingIndicatorRef.current
+        if (!candidate) return
+        pendingIndicatorRef.current = null
+        if (shouldUpdateIndicator(indicatorStateRef.current, candidate)) {
+          indicatorStateRef.current = candidate
+          setDropIndicator(candidate)
+        }
+      })
+    }
+  }
+
   const dropInfoRef = useRef<DropInfo>({ ...dropIndicator, targetType: null })
   const isDraggingStackRef = useRef(false)
   const dragStartStackIdRef = useRef<string | null>(null)
@@ -94,7 +146,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
     ) => {
       // Skip container drag - ReactFlow handles it
       if ((node as any).type === 'stackContainer') {
-        setDropIndicator({ show: false, position: { x: 0, y: 0, width: 0 }, canvasPosition: { x: 0, y: 0 }, targetStackId: null, insertionIndex: -1 })
+        scheduleIndicatorUpdate({ show: false, position: { x: 0, y: 0, width: 0 }, canvasPosition: { x: 0, y: 0 }, targetStackId: null, insertionIndex: -1 })
         return
       }
 
@@ -106,7 +158,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
 
           isDraggingStackRef.current = true
           const moved = applyGroupDrag(nds, node, currentNode, stackId)
-          setDropIndicator({ show: false, position: { x: 0, y: 0, width: 0 }, canvasPosition: { x: 0, y: 0 }, targetStackId: null, insertionIndex: -1 })
+          scheduleIndicatorUpdate({ show: false, position: { x: 0, y: 0, width: 0 }, canvasPosition: { x: 0, y: 0 }, targetStackId: null, insertionIndex: -1 })
           return moved
         })
         return
@@ -124,7 +176,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
       )
 
       dropInfoRef.current = dropInfo
-      setDropIndicator({
+      scheduleIndicatorUpdate({
         show: dropInfo.show,
         position: dropInfo.position,
         canvasPosition: dropInfo.canvasPosition,
@@ -149,7 +201,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
         return
       }
 
-      setDropIndicator({ show: false, position: { x: 0, y: 0, width: 0 }, canvasPosition: { x: 0, y: 0 }, targetStackId: null, insertionIndex: -1 })
+      scheduleIndicatorUpdate({ show: false, position: { x: 0, y: 0, width: 0 }, canvasPosition: { x: 0, y: 0 }, targetStackId: null, insertionIndex: -1 }, true)
 
       requestAnimationFrame(() => {
         setNodes((nds) => {

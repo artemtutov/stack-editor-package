@@ -247,16 +247,12 @@ function NotionBlock({ data, id, selected, positionAbsoluteX, positionAbsoluteY 
 function areEqual(prev: Props, next: Props) {
   if (prev.id !== next.id) return false
   if (prev.selected !== next.selected) return false
-  // Check position changes - React Flow passes these as props
-  if (prev.positionAbsoluteX !== next.positionAbsoluteX) return false
-  if (prev.positionAbsoluteY !== next.positionAbsoluteY) return false
   const pd = prev.data
   const nd = next.data
-  if (JSON.stringify(pd.contentJson) !== JSON.stringify(nd.contentJson)) return false
+  if (pd.contentHash !== nd.contentHash) return false
   if (pd.stackId !== nd.stackId) return false
   if (pd.isBottomNode !== nd.isBottomNode) return false
   if (pd.height !== nd.height) return false
-  // We ignore function prop identity to avoid needless re-renders while dragging
   return true
 }
 

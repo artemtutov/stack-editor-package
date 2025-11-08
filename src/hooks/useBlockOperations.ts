@@ -157,8 +157,19 @@ export function useBlockOperations(
       const node = nodesRef.current.find((n) => n.id === nodeId) as any
       const canonicalName = (node?.data as BlockData | undefined)?.canonicalName
 
+      // Determine focus target synchronously to avoid focus gap on mobile
+      const focusIdImmediate = findFocusTargetAfterDelete(nodeId, nodesRef.current as unknown as Node[])
+      if (focusIdImmediate) {
+        const handle = nodeRefsMap.current[focusIdImmediate]?.current
+        // Prefer caret to end to keep editing continuity; fallback to focus
+        if (handle?.setCaretToEnd) {
+          handle.setCaretToEnd()
+        } else {
+          handle?.focus?.()
+        }
+      }
+
       setNodes((nds) => {
-        const focusId = findFocusTargetAfterDelete(nodeId, nds)
         const stackId = node?.data?.stackId as string | undefined
 
         let updated = removeBlock(nodeId, nds)
@@ -169,12 +180,20 @@ export function useBlockOperations(
         } else {
           updated = syncContainers(updated)
         }
-
-        if (focusId) {
-          setTimeout(() => nodeRefsMap.current[focusId]?.current?.focus?.(), 50)
-        }
         return updated
       })
+
+      // Re-assert focus after DOM/state updates to ensure it sticks
+      if (focusIdImmediate) {
+        setTimeout(() => {
+          const handle = nodeRefsMap.current[focusIdImmediate]?.current
+          if (handle?.setCaretToEnd) {
+            handle.setCaretToEnd()
+          } else {
+            handle?.focus?.()
+          }
+        }, 50)
+      }
 
       // Unregister canonical name and emit delete event
       if (canonicalName) {
@@ -329,6 +348,17 @@ export function useBlockOperations(
       // Calculate cursor position: just the inline text length of the prev block
       // This positions the cursor right after the prev text, before the current text
       const prevInlineLength = calculateInlineTextLength({ type: 'doc', content: [prevJson.content?.[0] || { type: 'paragraph' }] })
+
+      // Synchronously move focus to the previous editor to avoid mobile keyboard dismissal
+      // Fine-tune caret after the merge completes below
+      {
+        const handle = nodeRefsMap.current[prevId]?.current
+        if (handle?.setCaretToEnd) {
+          handle.setCaretToEnd()
+        } else {
+          handle?.focus?.()
+        }
+      }
 
       setNodes((nds) => {
         // Apply merged payload to prev node and remove current node

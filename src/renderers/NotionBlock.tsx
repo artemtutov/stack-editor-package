@@ -1,23 +1,22 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { useReactFlow } from '@xyflow/react'
 import type { BlockData, RichTextPayload } from '../types'
 import TipTapEditor from './TipTapEditor'
-import { getAbsolutePosition } from '../logic/dragAndDrop'
 
 type Props = {
   id: string
   data: BlockData
   selected?: boolean
   parentId?: string
+  positionAbsoluteX?: number
+  positionAbsoluteY?: number
 }
 
-function NotionBlock({ data, id, selected, parentId }: Props) {
+function NotionBlock({ data, id, selected, positionAbsoluteX, positionAbsoluteY }: Props) {
   const blockRef = useRef<HTMLDivElement | null>(null)
   const [isFocused, setIsFocused] = useState(false)
-  const { getNode, getNodes } = useReactFlow()
-  const node = getNode(id)
-  const allNodes = getNodes()
-  const absolutePos = node ? getAbsolutePosition(node, allNodes) : { x: 0, y: 0 }
+
+  // React Flow provides position as props - no need for manual store subscriptions
+  const absolutePos = { x: positionAbsoluteX ?? 0, y: positionAbsoluteY ?? 0 }
 
   // Track height changes and notify parent (callback or DOM event)
   // Store previous height to implement epsilon threshold
@@ -248,13 +247,16 @@ function NotionBlock({ data, id, selected, parentId }: Props) {
 function areEqual(prev: Props, next: Props) {
   if (prev.id !== next.id) return false
   if (prev.selected !== next.selected) return false
+  // Check position changes - React Flow passes these as props
+  if (prev.positionAbsoluteX !== next.positionAbsoluteX) return false
+  if (prev.positionAbsoluteY !== next.positionAbsoluteY) return false
   const pd = prev.data
   const nd = next.data
   if (JSON.stringify(pd.contentJson) !== JSON.stringify(nd.contentJson)) return false
   if (pd.stackId !== nd.stackId) return false
   if (pd.isBottomNode !== nd.isBottomNode) return false
   if (pd.height !== nd.height) return false
-  // ignore function prop identity to avoid needless re-renders while dragging
+  // We ignore function prop identity to avoid needless re-renders while dragging
   return true
 }
 

@@ -244,17 +244,14 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         )
         const changedNode = updated.find((n) => n.id === nodeId) as any
 
-        // Skip layout sync during active resize to avoid width conflicts
-        // Also skip during zoom or pan to prevent coordinate confusion
-        if (!activeResizeContainerRef.current && !isZoomingRef.current && !isPanningRef.current) {
+        // Skip layout sync only during active manual resize to avoid width conflicts
+        // Height changes should always trigger layout recalculation for immediate feedback
+        if (!activeResizeContainerRef.current) {
           if (changedNode?.data?.stackId) {
             updated = applyLayout(changedNode.data.stackId, updated)
           } else {
             updated = syncContainers(updated)
           }
-        } else if (isZoomingRef.current || isPanningRef.current) {
-          // Queue a sync for after viewport motion completes
-          pendingSyncRef.current = true
         }
 
         // Inject callbacks if injection function is ready

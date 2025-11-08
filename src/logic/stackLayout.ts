@@ -428,6 +428,9 @@ export function applyStackLayout(
   // Then calculate relative Y positions for stacked blocks
   const laidOut = calculateStackLayout(stackId, withContainers, gap, headerHeight)
 
+  // Re-sync containers to update heights based on new block positions
+  const resynced = syncStackContainers(laidOut, blockWidth, headerHeight)
+
   // Finally update bottom node flags
-  return updateBottomNodeFlags(laidOut)
+  return updateBottomNodeFlags(resynced)
 }

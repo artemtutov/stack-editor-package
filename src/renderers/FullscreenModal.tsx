@@ -19,7 +19,6 @@ export default function FullscreenModal({ isOpen, onClose, children, isSidebarOp
         left: isSidebarOpen ? '300px' : 0,
         right: 0,
         bottom: 0,
-        width: isSidebarOpen ? 'calc(100vw - 300px)' : '100vw',
         height: '100vh',
         backgroundColor: '#ffffff',
         zIndex: 9999,

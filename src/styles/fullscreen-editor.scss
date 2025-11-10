@@ -4,7 +4,7 @@
   width: 100vw;
   display: flex;
   flex-direction: column;
-  background: var(--tt-bg-color, #fff);
+  background: #f5f5f5;
   color: var(--tt-theme-text, #111827);
   position: relative;
 }
@@ -17,15 +17,24 @@
 
 .tt-shell .tt-content {
   flex: 1;
-  display: flex;
   overflow: auto;
+  background: #f5f5f5;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+/* Hide scrollbar in fullscreen mode */
+.tt-shell .tt-content::-webkit-scrollbar {
+  display: none;
 }
 
 .tt-shell .tt-content .tiptap {
-  max-width: 680px;
+  max-width: 648px;
   width: 100%;
-  margin: 0 auto;
-  padding: 24px 24px 20vh;
+  margin: 24px auto;
+  padding: 24px 24px;
+  background: white;
+  border-radius: 8px;
 }
 
 .tt-shell .tiptap .ProseMirror {
@@ -42,7 +51,18 @@
   pointer-events: none;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 648px) {
+  .tt-shell .tt-content {
+    background: white !important;
+  }
+
+  .tt-shell .tt-content .tiptap {
+    margin: 0 auto;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 1024px) {
   .tt-shell .tt-toolbar-top {
     position: fixed;
     top: 0;

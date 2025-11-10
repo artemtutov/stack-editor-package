@@ -43,7 +43,7 @@ const FALLBACK_DOC: JSONContent = {
 }
 
 export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave, onToggleSidebar, isSidebarOpen }: FullscreenStackEditorProps) {
-  const isMobile = useIsMobile(480)
+  const isMobile = useIsMobile(1024)
   const { doc } = useMemo(() => blocksToDoc(blocks), [blocks])
   const extensions = useMemo(() => createEditorExtensions({
     placeholder: "Type '/' for commands",
@@ -179,25 +179,25 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
     </>
   )
 
-  // Action buttons (Cancel/Save)
-  const ActionButtons = () => (
+  // Done button (Mobile)
+  const DoneButton = () => (
     <ToolbarGroup>
-      {onCancel && (
-        <Button type="button" data-style="ghost" aria-label="Cancel editing" onClick={onCancel}>
-          Cancel
-        </Button>
-      )}
       <Button type="button" aria-label="Save changes" onClick={handleSave}>
-        Save
+        Done
       </Button>
     </ToolbarGroup>
   )
 
   return (
-    <div className="tt-shell">
+    <div
+      className="tt-shell"
+      style={{
+        '--tt-sidebar-offset': isSidebarOpen ? '300px' : '0'
+      } as React.CSSProperties}
+    >
       <EditorContext.Provider value={{ editor }}>
         {isMobile ? (
-          // Mobile layout: Top bar (Menu + Actions) + Bottom bar (Editing tools)
+          // Mobile layout: Top bar (Menu + Done) + Bottom bar (Editing tools)
           <>
             <Toolbar variant="fixed" className="tt-toolbar tt-toolbar-top" aria-label="Fullscreen editor top toolbar" data-toolbar-position="top">
               <ToolbarGroup>
@@ -206,7 +206,7 @@ export default function FullscreenStackEditor({ isOpen, blocks, onCancel, onSave
                 </Button>
               </ToolbarGroup>
               <Spacer />
-              <ActionButtons />
+              <DoneButton />
             </Toolbar>
 
             <div className="tt-content">

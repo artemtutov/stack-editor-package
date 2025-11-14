@@ -54,6 +54,7 @@ export {
   detectContentType,
   computeContentHash,
   computeContentHashSync,
+  computeStructureHash,
   normalizeContentJson,
   countItems,
   getTodoStats,

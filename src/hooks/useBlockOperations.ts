@@ -633,13 +633,32 @@ export function useBlockOperations(
         return final
       })
 
+      // Emit block.create event
+      const createdNode = nodesRef.current.find((n) => n.id === newId) as any
+      const createdCanonicalName = (createdNode?.data as BlockData | undefined)?.canonicalName
+      if (createdCanonicalName) {
+        const contentPreview = extractPreview(payload.json)
+        const contentType = detectContentType(payload.json)
+        const contentHash = computeContentHashSync(payload.json)
+        emitChange({
+          type: 'block.create',
+          blockId: newId,
+          canonicalName: createdCanonicalName,
+          stackId,
+          stackIndex: undefined, // Will be determined in layout
+          contentPreview,
+          contentType,
+          contentHash,
+        })
+      }
+
       // After block creation, trigger split if we have 3 consecutive empty blocks
       if (shouldSplitAfterCreation) {
         // Use setTimeout to ensure the block creation completes first
         setTimeout(() => splitStackAt(emptyBlocksToSplit), 0)
       }
     },
-    [setNodes, nodeRefsMap, nodesRef, ensureInsertionOrder, applyLayout, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, gap, headerHeight, blockWidth, splitStackAt]
+    [setNodes, nodeRefsMap, nodesRef, ensureInsertionOrder, applyLayout, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, gap, headerHeight, blockWidth, splitStackAt, emitChange]
   )
 
   const addMultipleBelow = useCallback(
@@ -1057,8 +1076,27 @@ export function useBlockOperations(
         setTimeout(() => nodeRefsMap.current[newId]?.current?.focus?.(), 50)
         return final
       })
+
+      // Emit block.create event for the new split block
+      const createdNode = nodesRef.current.find((n) => n.id === newId) as any
+      const createdCanonicalName = (createdNode?.data as BlockData | undefined)?.canonicalName
+      if (createdCanonicalName) {
+        const contentPreview = extractPreview(afterPayload.json)
+        const contentType = detectContentType(afterPayload.json)
+        const contentHash = computeContentHashSync(afterPayload.json)
+        emitChange({
+          type: 'block.create',
+          blockId: newId,
+          canonicalName: createdCanonicalName,
+          stackId,
+          stackIndex: undefined, // Will be determined in layout
+          contentPreview,
+          contentType,
+          contentHash,
+        })
+      }
     },
-    [setNodes, nodeRefsMap, nodesRef, addBelow, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, applyLayout, ensureInsertionOrder, gap, headerHeight, blockWidth]
+    [setNodes, nodeRefsMap, nodesRef, addBelow, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, applyLayout, ensureInsertionOrder, gap, headerHeight, blockWidth, emitChange]
   )
 
   const replaceStackContent = useCallback(

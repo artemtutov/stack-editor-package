@@ -45,7 +45,7 @@ import { createEmptyPayload, htmlToJson, jsonToHtml, ensureJsonContent, CURRENT_
 import { getAbsolutePosition, convertAbsoluteToRelative, convertRelativeToAbsolute, findIntersectingGroup } from './logic/grouping'
 import { enableLogging, disableLogging } from './utils/setupLogger'
 import { CanonicalNameRegistry, generateCanonicalName } from './logic/canonicalNames'
-import { extractPreview, detectContentType, computeContentHashSync, PREVIEW_ALGO_VERSION, HASH_ALGO_VERSION } from './logic/contentHelpers'
+import { extractPreview, detectContentType, computeContentHashSync, computeStructureHash, PREVIEW_ALGO_VERSION, HASH_ALGO_VERSION } from './logic/contentHelpers'
 
 // Default options
 const DEFAULTS: Required<StackEditorOptions> = {
@@ -154,6 +154,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   const isPanningRef = useRef<boolean>(false)
   const previousPanRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const panDebounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  // Track which stack containers are offscreen to hide their children
+  const hiddenStacksRef = useRef<Set<string>>(new Set())
 
   // Ref to hold callback injection function (populated later)
   const injectCallbacksRef = useRef<((nodes: Node[]) => Node[]) | null>(null)
@@ -172,6 +174,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
   const transactionNameRef = useRef<string | undefined>(undefined)
   const changeListenersRef = useRef<Set<ChangeListener>>(new Set())
   const isRestoringRef = useRef(false)
+  const suppressEventsRef = useRef(false) // Prevents onChange emissions during silent restoration
 
   // Canonical name registry
   const canonicalNameRegistryRef = useRef(new CanonicalNameRegistry())
@@ -202,8 +205,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
   // Helper to emit change events to listeners (moved early for callback dependencies)
   const emitChange = useCallback((event: ChangeEvent) => {
-    // Skip emitting during transactions or restoration
-    if (isInTransactionRef.current || isRestoringRef.current) return
+    // Skip emitting during transactions, restoration, or when explicitly suppressed
+    if (isInTransactionRef.current || isRestoringRef.current || suppressEventsRef.current) return
 
     // Add event metadata if not present
     const enrichedEvent: ChangeEvent = {
@@ -389,6 +392,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     groupNodeTypes: opts.groupNodeTypes,
     gap: opts.gap,
     headerHeight: opts.headerHeight,
+    emitChange,
   })
 
   // Viewport tracking with zoom and pan detection
@@ -449,6 +453,80 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
           })
         }
       }, 100)
+    }
+
+    // Update visibility of children based on container on-screen status
+    // This prevents children (with relative positions) from rendering without their parent
+    try {
+      const margin = 0 // align closely with React Flow culling
+      const domNode: HTMLElement | null = (storeApi.getState() as any)?.domNode || null
+      const domRect = domNode?.getBoundingClientRect()
+      const viewportLeft = (domRect?.left ?? 0) - margin
+      const viewportTop = (domRect?.top ?? 0) - margin
+      const viewportRight = (domRect ? domRect.right : (window?.innerWidth ?? 0)) + margin
+      const viewportBottom = (domRect ? domRect.bottom : (window?.innerHeight ?? 0)) + margin
+
+      const containers = nodesRef.current.filter(n => n.type === 'stackContainer')
+      const offscreen = new Set<string>()
+
+      for (const c of containers) {
+        // Compute absolute container rect in screen coordinates
+        const abs = getAbsolutePosition(c, nodesRef.current)
+        const width = (
+          (c as any).measured?.width ??
+          (c as any).style?.width ??
+          (c as any).data?.width ??
+          (opts.blockWidth + 8)
+        ) as number
+        const height = (
+          (c as any).measured?.height ??
+          (c as any).data?.height ??
+          (c as any).style?.height ??
+          100
+        ) as number
+
+        const topLeft = reactFlowInstance.flowToScreenPosition({ x: abs.x, y: abs.y })
+        const bottomRight = reactFlowInstance.flowToScreenPosition({ x: abs.x + width, y: abs.y + height })
+        const left = Math.min(topLeft.x, bottomRight.x)
+        const right = Math.max(topLeft.x, bottomRight.x)
+        const top = Math.min(topLeft.y, bottomRight.y)
+        const bottom = Math.max(topLeft.y, bottomRight.y)
+
+        const intersects = !(right < viewportLeft || left > viewportRight || bottom < viewportTop || top > viewportBottom)
+        if (!intersects) offscreen.add(c.id)
+      }
+
+      // Only update nodes when the offscreen set actually changes
+      let changed = false
+      if (offscreen.size !== hiddenStacksRef.current.size) {
+        changed = true
+      } else {
+        for (const id of offscreen) {
+          if (!hiddenStacksRef.current.has(id)) { changed = true; break }
+        }
+      }
+
+      if (changed) {
+        hiddenStacksRef.current = offscreen
+        setNodesBase((nds) => {
+          let anyChanged = false
+          const updated = nds.map((n: any) => {
+            if (n.type === 'block' && (n.data as any)?.stackId) {
+              const shouldHide = offscreen.has((n.data as any).stackId)
+              if (!!n.hidden !== shouldHide) {
+                anyChanged = true
+                return { ...n, hidden: shouldHide }
+              }
+            }
+            return n
+          })
+
+          if (!anyChanged) return nds
+          return injectCallbacksRef.current ? injectCallbacksRef.current(updated) : updated
+        })
+      }
+    } catch {
+      // Best-effort visibility update; ignore errors in non-browser contexts
     }
   }, [syncContainers, setNodesBase])
 
@@ -1309,12 +1387,27 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
   // Get snapshot of current state for undo/redo
   const getSnapshot = useCallback((): StackSnapshot => {
+    const blocks = getBlocks()
+
+    // Compute structure hash from current nodes
+    const structureHash = computeStructureHash(
+      nodes.map(node => ({
+        id: node.id,
+        parentId: node.parentId,
+        stackId: (node.data as any)?.stackId,
+        stackIndex: (node.data as any)?.stackIndex,
+        position: node.position,
+        contentHash: (node.data as any)?.contentHash,
+      }))
+    )
+
     return {
       version: STACK_SNAPSHOT_VERSION,
-      blocks: getBlocks(),
-      timestamp: Date.now()
+      blocks,
+      timestamp: Date.now(),
+      structureHash,
     }
-  }, [getBlocks])
+  }, [getBlocks, nodes])
 
   // Apply snapshot to restore state
   const applySnapshot = useCallback((snapshot: StackSnapshot, options?: { silent?: boolean }) => {
@@ -1331,10 +1424,12 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       console.warn(`📦 Stack Editor: Snapshot version mismatch. Expected ${STACK_SNAPSHOT_VERSION}, got ${snapshot.version}`)
     }
 
-    // Set restoring flag to prevent emissions during load
+    // Set flags to prevent emissions during and after load
     const wasRestoring = isRestoringRef.current
+    const wasSuppressing = suppressEventsRef.current
     if (silent) {
       isRestoringRef.current = true
+      suppressEventsRef.current = true
     }
 
     try {
@@ -1342,10 +1437,12 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       loadBlocks(snapshot.blocks)
     } finally {
       if (silent) {
-        // Reset restoring flag after a brief delay to allow React to update
+        // Keep suppress flag active longer to prevent post-restore emissions
+        // Reset after React has fully updated and all effects have run
         setTimeout(() => {
           isRestoringRef.current = wasRestoring
-        }, 10)
+          suppressEventsRef.current = wasSuppressing
+        }, 150) // Extended delay to ensure all React updates complete
       }
     }
   }, [loadBlocks])

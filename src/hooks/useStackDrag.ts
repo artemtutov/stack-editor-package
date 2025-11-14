@@ -8,6 +8,7 @@ import {
 } from '../logic/dragAndDrop'
 import { ensureInsertionOrder, calculateStackLayout } from '../logic/stackLayout'
 import { assignBlockToStack, nextStackId } from '../logic/stackState'
+import type { ChangeEvent } from '../types'
 
 export type UseStackDragOptions = {
   xTolerance: number
@@ -17,6 +18,7 @@ export type UseStackDragOptions = {
   groupNodeTypes: string[]
   gap: number
   headerHeight: number
+  emitChange: (event: ChangeEvent) => void
 }
 
 export type UseStackDragResult = {
@@ -49,7 +51,7 @@ export type UseStackDragResult = {
  * Hook for managing drag and drop behavior
  */
 export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
-  const { xTolerance, blockWidth, enableShiftGroupDrag, enableAutoGrouping, groupNodeTypes, gap, headerHeight } = options
+  const { xTolerance, blockWidth, enableShiftGroupDrag, enableAutoGrouping, groupNodeTypes, gap, headerHeight, emitChange } = options
 
   const [dropIndicator, setDropIndicator] = useState({
     show: false,
@@ -203,6 +205,11 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
 
       scheduleIndicatorUpdate({ show: false, position: { x: 0, y: 0, width: 0 }, canvasPosition: { x: 0, y: 0 }, targetStackId: null, insertionIndex: -1 }, true)
 
+      // Capture stack IDs for event emission
+      let capturedOldStackId: string | undefined
+      let capturedNewStackId: string | undefined
+      let capturedCanonicalName: string | undefined
+
       requestAnimationFrame(() => {
         setNodes((nds) => {
           const oldNode = nds.find((n) => n.id === node.id) as any
@@ -210,11 +217,18 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
           const isGroupDrag = isDraggingStackRef.current
           const dropInfo = dropInfoRef.current || { show: false, targetStackId: null, insertionIndex: -1, targetType: null }
 
+          // Capture for event emission
+          capturedOldStackId = oldStackId
+          capturedCanonicalName = oldNode?.data?.canonicalName
+
           // Handle solo block attachment - create a new stack
           if (!isGroupDrag && dropInfo.show && dropInfo.targetType === 'solo' && dropInfo.targetNodeId) {
             const targetNode = nds.find((n) => n.id === dropInfo.targetNodeId) as any
             if (targetNode && !targetNode.data?.stackId) {
               const newStackId = nextStackId(nds)
+
+              // Capture new stack ID for event emission
+              capturedNewStackId = newStackId
 
               // Position dragged node at target's location if it's from a stack or if target is grouped
               let updatedNodes = nds
@@ -277,6 +291,9 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
 
           const newStackId = isGroupDrag ? oldStackId : dropInfo.show ? (dropInfo.targetStackId as string) : undefined
 
+          // Capture new stack ID for event emission
+          capturedNewStackId = newStackId
+
           let updatedNodes = assignBlockToStack(node.id, newStackId, nds)
 
           // Handle old stack cleanup
@@ -310,9 +327,18 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
           const final = updateBottomFlags(updatedNodes)
           return syncContainers(final)
         })
+
+        // Emit block.move.end event after drag completes
+        if (capturedCanonicalName && (capturedNewStackId || capturedOldStackId)) {
+          emitChange({
+            type: 'block.move.end',
+            blockId: node.id,
+            canonicalName: capturedCanonicalName,
+          })
+        }
       })
     },
-    [gap, headerHeight]
+    [gap, headerHeight, emitChange]
   )
 
   return {

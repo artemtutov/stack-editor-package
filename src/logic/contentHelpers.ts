@@ -272,3 +272,46 @@ export function getWordCount(contentJson: JSONContent): number {
   // Simple word count by splitting on whitespace
   return text.split(/\s+/).length
 }
+
+/**
+ * Compute structural hash of blocks for undo/redo deduplication
+ * Includes: block IDs, parent IDs, stack IDs, stack indexes, positions (rounded)
+ * and content hashes for each block
+ *
+ * @param blocks Array of block data with structural information
+ * @returns Hex string hash representing the current structure
+ */
+export function computeStructureHash(blocks: Array<{
+  id: string
+  parentId?: string
+  stackId?: string
+  stackIndex?: number
+  position?: { x: number; y: number }
+  contentHash?: string
+}>): string {
+  // Create a normalized representation of the structure
+  const structureData = blocks.map(block => ({
+    id: block.id,
+    parentId: block.parentId || null,
+    stackId: block.stackId || null,
+    stackIndex: block.stackIndex ?? null,
+    // Round positions to avoid floating point differences
+    x: block.position ? Math.round(block.position.x) : null,
+    y: block.position ? Math.round(block.position.y) : null,
+    contentHash: block.contentHash || null,
+  }))
+
+  // Sort by ID for consistent ordering
+  structureData.sort((a, b) => a.id.localeCompare(b.id))
+
+  const jsonString = JSON.stringify(structureData)
+
+  // Use FNV-1a hash for fast synchronous computation
+  let hash = 2166136261 // FNV offset basis
+  for (let i = 0; i < jsonString.length; i++) {
+    hash ^= jsonString.charCodeAt(i)
+    hash = Math.imul(hash, 16777619) // FNV prime
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, '0')
+}

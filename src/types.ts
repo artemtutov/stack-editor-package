@@ -132,6 +132,7 @@ export type StackSnapshot = {
   version: number
   blocks: InitialBlock[]
   timestamp: number
+  structureHash?: string // Hash of block structure (IDs, positions, parentIds, stackIds, content hashes)
 }
 
 // Change event types for undo/redo coordination

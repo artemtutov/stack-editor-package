@@ -557,6 +557,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
           contentType: data.contentType,
           contentHash: data.contentHash,
           stackIndex: data.stackIndex,
+          height: data.height, // Preserve height for undo/redo
         }
 
         // Preserve position, parentId, extent, stackId
@@ -937,7 +938,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         contentPreview,
         contentType,
         contentHash,
-        height: 24,
+        height: blk.height ?? 24, // Restore saved height or default to 24
         insertionOrder: idx,
         isBottomNode: idx === blocks.length - 1,
         focusRef: nodeRefsMap.current[id],

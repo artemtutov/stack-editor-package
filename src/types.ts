@@ -113,6 +113,8 @@ export type InitialBlock = {
   containerParentId?: string            // Parent node ID of the container (for grouped containers)
   containerExtent?: 'parent'            // Boundary constraint of the container (for grouped containers)
   containerCanonicalName?: string       // Canonical name of the container
+  // Layout
+  height?: number                       // Block height in pixels (for undo/redo preservation)
 }
 
 export type StackEditorValue = InitialBlock[]

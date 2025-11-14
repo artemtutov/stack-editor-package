@@ -438,6 +438,13 @@ export function useBlockOperations(
       // Always generate a new stackId to prevent reusing stale/old stackIds
       const stackId = isCreatingNewStack ? nextStackId(nodesRef.current) : existingStackId
 
+      // Generate canonical name and content helpers BEFORE setNodes to avoid race condition
+      const canonicalName = generateCanonicalName('block', newId)
+      canonicalNameRegistry.current.register(canonicalName, newId, 'block')
+      const contentPreview = extractPreview(payload.json)
+      const contentType = detectContentType(payload.json)
+      const contentHash = computeContentHashSync(payload.json)
+
       setNodes((nds) => {
         const currentNode = nds.find((n) => n.id === currentNodeId) as any
         if (!currentNode) return nds
@@ -511,13 +518,7 @@ export function useBlockOperations(
             },
           }
 
-          // Generate canonical name and content helpers
-          const canonicalName = generateCanonicalName('block', newId)
-          canonicalNameRegistry.current.register(canonicalName, newId, 'block')
-          const contentPreview = extractPreview(payload.json)
-          const contentType = detectContentType(payload.json)
-          const contentHash = computeContentHashSync(payload.json)
-
+          // Use pre-generated canonical name and content helpers
           const newNode: Node = {
             id: newId,
             type: 'block',
@@ -555,13 +556,7 @@ export function useBlockOperations(
           return final
         }
 
-        // Generate canonical name and content helpers for existing stack
-        const canonicalNameAddBelow = generateCanonicalName('block', newId)
-        canonicalNameRegistry.current.register(canonicalNameAddBelow, newId, 'block')
-        const contentPreviewAddBelow = extractPreview(payload.json)
-        const contentTypeAddBelow = detectContentType(payload.json)
-        const contentHashAddBelow = computeContentHashSync(payload.json)
-
+        // Use pre-generated canonical name and content helpers for existing stack
         const newNode: Node = {
           id: newId,
           type: 'block',
@@ -569,13 +564,13 @@ export function useBlockOperations(
           position: { x: 4, y: 0 },
           dragHandle: '.drag-handle',
           data: {
-            canonicalName: canonicalNameAddBelow,
+            canonicalName,
             contentJson: payload.json,
             cachedHTML: payload.html,
             schemaVersion: CURRENT_SCHEMA_VERSION,
-            contentPreview: contentPreviewAddBelow,
-            contentType: contentTypeAddBelow,
-            contentHash: contentHashAddBelow,
+            contentPreview,
+            contentType,
+            contentHash,
             stackId,
             isBottomNode: true,
             height: 24,
@@ -633,24 +628,17 @@ export function useBlockOperations(
         return final
       })
 
-      // Emit block.create event
-      const createdNode = nodesRef.current.find((n) => n.id === newId) as any
-      const createdCanonicalName = (createdNode?.data as BlockData | undefined)?.canonicalName
-      if (createdCanonicalName) {
-        const contentPreview = extractPreview(payload.json)
-        const contentType = detectContentType(payload.json)
-        const contentHash = computeContentHashSync(payload.json)
-        emitChange({
-          type: 'block.create',
-          blockId: newId,
-          canonicalName: createdCanonicalName,
-          stackId,
-          stackIndex: undefined, // Will be determined in layout
-          contentPreview,
-          contentType,
-          contentHash,
-        })
-      }
+      // Emit block.create event using pre-generated data (avoids race condition with nodesRef)
+      emitChange({
+        type: 'block.create',
+        blockId: newId,
+        canonicalName,
+        stackId,
+        stackIndex: undefined, // Will be determined in layout
+        contentPreview,
+        contentType,
+        contentHash,
+      })
 
       // After block creation, trigger split if we have 3 consecutive empty blocks
       if (shouldSplitAfterCreation) {
@@ -658,7 +646,7 @@ export function useBlockOperations(
         setTimeout(() => splitStackAt(emptyBlocksToSplit), 0)
       }
     },
-    [setNodes, nodeRefsMap, nodesRef, ensureInsertionOrder, applyLayout, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, gap, headerHeight, blockWidth, splitStackAt, emitChange]
+    [setNodes, nodeRefsMap, nodesRef, ensureInsertionOrder, applyLayout, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, gap, headerHeight, blockWidth, splitStackAt, emitChange, canonicalNameRegistry]
   )
 
   const addMultipleBelow = useCallback(
@@ -900,6 +888,13 @@ export function useBlockOperations(
       // Always generate a new stackId to prevent reusing stale/old stackIds
       const stackId = isCreatingNewStack ? nextStackId(nodesRef.current) : nodeCheck.data.stackId
 
+      // Generate canonical name and content helpers BEFORE setNodes to avoid race condition
+      const canonicalName = generateCanonicalName('block', newId)
+      canonicalNameRegistry.current.register(canonicalName, newId, 'block')
+      const contentPreview = extractPreview(afterPayload.json)
+      const contentType = detectContentType(afterPayload.json)
+      const contentHash = computeContentHashSync(afterPayload.json)
+
       setNodes((nds) => {
         const node = nds.find((n) => n.id === nodeId) as any
         if (!node) return nds
@@ -956,12 +951,7 @@ export function useBlockOperations(
             zIndex: -1,
           } as Node
 
-          // Generate canonical name and content helpers for new split block
-          const canonicalNameSplit = generateCanonicalName('block', newId)
-          canonicalNameRegistry.current.register(canonicalNameSplit, newId, 'block')
-          const contentPreviewSplit = extractPreview(afterPayload.json)
-          const contentTypeSplit = detectContentType(afterPayload.json)
-          const contentHashSplit = computeContentHashSync(afterPayload.json)
+          // Use pre-generated canonical name and content helpers
 
           // Update current node to be part of the stack
           const updatedCurrentInStack = {
@@ -986,13 +976,13 @@ export function useBlockOperations(
             dragHandle: '.drag-handle',
             className: 'in-stack',
             data: {
-              canonicalName: canonicalNameSplit,
+              canonicalName,
               contentJson: afterPayload.json,
               cachedHTML: afterPayload.html,
               schemaVersion: CURRENT_SCHEMA_VERSION,
-              contentPreview: contentPreviewSplit,
-              contentType: contentTypeSplit,
-              contentHash: contentHashSplit,
+              contentPreview,
+              contentType,
+              contentHash,
               stackId,
               isBottomNode: true,
               height: 24,
@@ -1014,12 +1004,7 @@ export function useBlockOperations(
           return updatedNodes
         }
 
-        // Generate canonical name and content helpers for new split block
-        const canonicalNameSplit2 = generateCanonicalName('block', newId)
-        canonicalNameRegistry.current.register(canonicalNameSplit2, newId, 'block')
-        const contentPreviewSplit2 = extractPreview(afterPayload.json)
-        const contentTypeSplit2 = detectContentType(afterPayload.json)
-        const contentHashSplit2 = computeContentHashSync(afterPayload.json)
+        // Use pre-generated canonical name and content helpers
 
         const newNode: Node = {
           id: newId,
@@ -1028,13 +1013,13 @@ export function useBlockOperations(
           position: { x: 4, y: 0 },
           dragHandle: '.drag-handle',
           data: {
-            canonicalName: canonicalNameSplit2,
+            canonicalName,
             contentJson: afterPayload.json,
             cachedHTML: afterPayload.html,
             schemaVersion: CURRENT_SCHEMA_VERSION,
-            contentPreview: contentPreviewSplit2,
-            contentType: contentTypeSplit2,
-            contentHash: contentHashSplit2,
+            contentPreview,
+            contentType,
+            contentHash,
             stackId,
             isBottomNode: true,
             height: 24,
@@ -1077,26 +1062,19 @@ export function useBlockOperations(
         return final
       })
 
-      // Emit block.create event for the new split block
-      const createdNode = nodesRef.current.find((n) => n.id === newId) as any
-      const createdCanonicalName = (createdNode?.data as BlockData | undefined)?.canonicalName
-      if (createdCanonicalName) {
-        const contentPreview = extractPreview(afterPayload.json)
-        const contentType = detectContentType(afterPayload.json)
-        const contentHash = computeContentHashSync(afterPayload.json)
-        emitChange({
-          type: 'block.create',
-          blockId: newId,
-          canonicalName: createdCanonicalName,
-          stackId,
-          stackIndex: undefined, // Will be determined in layout
-          contentPreview,
-          contentType,
-          contentHash,
-        })
-      }
+      // Emit block.create event for the new split block using pre-generated data (avoids race condition)
+      emitChange({
+        type: 'block.create',
+        blockId: newId,
+        canonicalName,
+        stackId,
+        stackIndex: undefined, // Will be determined in layout
+        contentPreview,
+        contentType,
+        contentHash,
+      })
     },
-    [setNodes, nodeRefsMap, nodesRef, addBelow, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, applyLayout, ensureInsertionOrder, gap, headerHeight, blockWidth, emitChange]
+    [setNodes, nodeRefsMap, nodesRef, addBelow, handleHeightChange, tabHandlersRef, handleSlashCommand, handleDelete, handleMergeUp, applyLayout, ensureInsertionOrder, gap, headerHeight, blockWidth, emitChange, canonicalNameRegistry]
   )
 
   const replaceStackContent = useCallback(

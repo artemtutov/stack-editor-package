@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
+import type { InitialBlock, NormalizedBlock, StackSnapshot } from '../types'
 import xxhash from 'xxhash-wasm'
 
 // Algorithm versions for recomputation detection
@@ -314,4 +315,75 @@ export function computeStructureHash(blocks: Array<{
   }
 
   return (hash >>> 0).toString(16).padStart(8, '0')
+}
+
+/**
+ * Normalize a block snapshot to ensure all required fields are present
+ * Computes missing content helpers (contentPreview, contentType, contentHash)
+ *
+ * @param block Partial block data (e.g., from saved snapshot or undo/redo)
+ * @returns Fully normalized block with guaranteed helper fields
+ */
+export function normalizeBlockSnapshot(block: Partial<InitialBlock>): NormalizedBlock {
+  const contentJson = block.contentJson ?? undefined
+
+  // Compute content helpers if missing
+  const contentPreview = block.contentPreview ?? extractPreview(contentJson || {})
+  const contentType = block.contentType ?? detectContentType(contentJson || {})
+  const contentHash = block.contentHash ?? computeContentHashSync(contentJson || {})
+
+  return {
+    id: block.id,
+    canonicalName: block.canonicalName,
+    contentJson,
+    html: block.html,
+    contentPreview,
+    contentType,
+    contentHash,
+    position: block.position,
+    parentId: block.parentId,
+    extent: block.extent,
+    stackId: block.stackId,
+    stackIndex: block.stackIndex,
+    containerPosition: block.containerPosition,
+    containerParentId: block.containerParentId,
+    containerExtent: block.containerExtent,
+    containerCanonicalName: block.containerCanonicalName,
+    height: block.height,
+  }
+}
+
+/**
+ * Normalize a stack snapshot to ensure all blocks have helpers and structureHash is present
+ *
+ * @param snapshot Partial snapshot (e.g., from localStorage, undo/redo, or external source)
+ * @returns Fully normalized StackSnapshot with guaranteed structureHash and normalized blocks
+ */
+export function normalizeStackSnapshot(snapshot: {
+  version?: number
+  blocks?: Array<Partial<InitialBlock>>
+  timestamp?: number
+  structureHash?: string
+}): StackSnapshot {
+  // Normalize all blocks
+  const blocks = (snapshot.blocks ?? []).map(normalizeBlockSnapshot)
+
+  // Recompute structure hash from normalized blocks
+  const structureHash = computeStructureHash(
+    blocks.map(b => ({
+      id: b.id || '',
+      parentId: b.parentId,
+      stackId: b.stackId,
+      stackIndex: b.stackIndex,
+      position: b.position,
+      contentHash: b.contentHash,
+    }))
+  )
+
+  return {
+    version: snapshot.version ?? 1,
+    blocks,
+    timestamp: snapshot.timestamp ?? Date.now(),
+    structureHash,
+  }
 }

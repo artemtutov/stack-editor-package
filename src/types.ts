@@ -98,7 +98,7 @@ export type InitialBlock = {
   // Content
   contentJson?: JSONContent
   html?: string
-  // Derived content metadata (optional on load, will be computed if missing)
+  // Derived content metadata (optional on input, always present after normalization via getSnapshot/normalizeBlockSnapshot)
   contentPreview?: string
   contentType?: ContentType
   contentHash?: string
@@ -119,6 +119,16 @@ export type InitialBlock = {
 
 export type StackEditorValue = InitialBlock[]
 
+/**
+ * Normalized block snapshot with guaranteed content helper fields
+ * Used as the canonical output format from getSnapshot() and normalizeBlockSnapshot()
+ */
+export type NormalizedBlock = InitialBlock & {
+  contentPreview: string
+  contentType: ContentType
+  contentHash: string
+}
+
 export type StackEditorHookArgs = {
   initialBlocks?: StackEditorValue
   initialEdges?: StackEdge[]
@@ -132,9 +142,9 @@ export const STACK_SNAPSHOT_VERSION = 1
 // Snapshot structure for undo/redo
 export type StackSnapshot = {
   version: number
-  blocks: InitialBlock[]
+  blocks: NormalizedBlock[]
   timestamp: number
-  structureHash?: string // Hash of block structure (IDs, positions, parentIds, stackIds, content hashes)
+  structureHash: string // Hash of block structure (always present after normalization)
 }
 
 // Change event types for undo/redo coordination
@@ -223,7 +233,7 @@ export type StackEditorHookResult = {
   overlays: React.ReactNode
   // History/undo-redo APIs
   getSnapshot: () => StackSnapshot
-  applySnapshot: (snapshot: StackSnapshot, options?: { silent?: boolean }) => void
+  applySnapshot: (snapshot: Partial<StackSnapshot>, options?: { silent?: boolean }) => void
   // Transaction APIs for grouping operations
   beginTransaction: (name?: string) => void
   commitTransaction: (name: string) => void

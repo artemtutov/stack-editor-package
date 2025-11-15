@@ -182,12 +182,41 @@ editor.getBlocks()       // Get current state (includes parentId/extent)
 editor.loadBlocks(blocks) // Load state
 editor.createBlock({ html: '<p>Hi</p>', parentId: 'group1' })
 
-// Undo/redo coordination
-editor.getSnapshot()     // Get snapshot for undo
-editor.applySnapshot(snapshot) // Restore snapshot
+// Snapshots (v0.5.3+)
+const snapshot = editor.getSnapshot()
+// Guaranteed shape:
+// {
+//   version: number
+//   timestamp: number
+//   structureHash: string  // Always present for deduplication
+//   blocks: Array<{
+//     // ... block data
+//     contentPreview: string   // Always present
+//     contentType: string      // Always present
+//     contentHash: string      // Always present
+//   }>
+// }
+
+editor.applySnapshot(snapshot, { silent: true }) // Restore snapshot (accepts partial, normalizes automatically)
+
 editor.onChange((event) => {
   // Listen for changes: 'block.group', 'block.ungroup', etc.
 })
+```
+
+#### Snapshot Normalization (v0.5.3+)
+
+Starting in v0.5.3, snapshots are guaranteed to include content helpers and structure hashing:
+
+- **`getSnapshot()`** always returns normalized snapshots with `contentPreview`, `contentType`, `contentHash` for each block, plus a `structureHash` for the entire snapshot
+- **`applySnapshot()`** accepts partial snapshots (e.g., from old saves or undo/redo) and normalizes them automatically
+- **No app-side massaging needed** - the package handles helper computation and hash generation internally
+
+```tsx
+import { normalizeStackSnapshot, normalizeBlockSnapshot } from '@stack-editor/react'
+
+// You can also normalize snapshots manually if needed
+const normalized = normalizeStackSnapshot(partialSnapshot)
 ```
 
 ## Development

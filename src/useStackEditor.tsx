@@ -45,7 +45,7 @@ import { createEmptyPayload, htmlToJson, jsonToHtml, ensureJsonContent, CURRENT_
 import { getAbsolutePosition, convertAbsoluteToRelative, convertRelativeToAbsolute, findIntersectingGroup } from './logic/grouping'
 import { enableLogging, disableLogging } from './utils/setupLogger'
 import { CanonicalNameRegistry, generateCanonicalName } from './logic/canonicalNames'
-import { extractPreview, detectContentType, computeContentHashSync, computeStructureHash, PREVIEW_ALGO_VERSION, HASH_ALGO_VERSION } from './logic/contentHelpers'
+import { extractPreview, detectContentType, computeContentHashSync, computeStructureHash, normalizeStackSnapshot, normalizeBlockSnapshot, PREVIEW_ALGO_VERSION, HASH_ALGO_VERSION } from './logic/contentHelpers'
 
 // Default options
 const DEFAULTS: Required<StackEditorOptions> = {
@@ -557,7 +557,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
           contentType: data.contentType,
           contentHash: data.contentHash,
           stackIndex: data.stackIndex,
-          height: data.height, // Preserve height for undo/redo
+          height: data.height ?? 24, // Preserve height for undo/redo (fallback to 24)
         }
 
         // Preserve position, parentId, extent, stackId
@@ -813,6 +813,9 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
   // Load blocks imperatively (replaces all blocks, used for canvas load)
   const loadBlocks = useCallback((blocks: InitialBlock[]) => {
+    // Normalize all blocks upfront to ensure content helpers are present
+    const normalizedBlocks = blocks.map(normalizeBlockSnapshot)
+
     // Helper to resolve payload
     const resolvePayload = (blk: InitialBlock): RichTextPayload => {
       if (blk.contentJson) {
@@ -830,7 +833,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
 
     // 1. Extract container data from blocks
     const containerData = new Map<string, { position: { x: number; y: number }; parentId?: string; extent?: 'parent' }>()
-    blocks.forEach(blk => {
+    normalizedBlocks.forEach(blk => {
       if (blk.containerPosition && blk.stackId) {
         containerData.set(blk.stackId, {
           position: blk.containerPosition,
@@ -843,7 +846,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     // 2. Pre-create container nodes with saved positions and grouping info
     const preCreatedContainers: Node[] = Array.from(containerData).map(([id, data]) => {
       // Get canonical name from first block in this stack or generate one
-      const firstBlockInStack = blocks.find(b => b.stackId === id)
+      const firstBlockInStack = normalizedBlocks.find(b => b.stackId === id)
       let containerCanonicalName = firstBlockInStack?.containerCanonicalName
       if (!containerCanonicalName) {
         containerCanonicalName = generateCanonicalName('stack', id)
@@ -890,7 +893,7 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     })
 
     // 4. Create nodes from blocks
-    const created: Node[] = blocks.map((blk, idx) => {
+    const created: Node[] = normalizedBlocks.map((blk, idx) => {
       const id = blk.id ?? nextBlockId()
       if (!nodeRefsMap.current[id]) nodeRefsMap.current[id] = { current: null }
 
@@ -917,30 +920,18 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
         console.warn(`📦 Stack Editor: Auto-resolved conflict with name "${canonicalName}"`)
       }
 
-      // Compute or validate content helpers
-      let contentPreview = blk.contentPreview
-      let contentType = blk.contentType
-      let contentHash = blk.contentHash
-
-      // Recompute if missing or potentially stale (no version check for now, always trust provided values)
-      if (!contentPreview || !contentType || !contentHash) {
-        contentPreview = extractPreview(payload.json)
-        contentType = detectContentType(payload.json)
-        contentHash = computeContentHashSync(payload.json)
-        console.warn(`📦 Stack Editor: Recomputed content helpers for block "${canonicalName}" (missing on load)`)
-      }
-
+      // Content helpers are guaranteed to be present after normalization
       const data: BlockData = {
         canonicalName,
         contentJson: payload.json,
         cachedHTML: payload.html,
         schemaVersion: CURRENT_SCHEMA_VERSION,
-        contentPreview,
-        contentType,
-        contentHash,
-        height: blk.height ?? 24, // Restore saved height or default to 24
+        contentPreview: blk.contentPreview,
+        contentType: blk.contentType,
+        contentHash: blk.contentHash,
+        height: blk.height && blk.height > 0 ? blk.height : 24, // Restore saved height or default to 24 (validate positive)
         insertionOrder: idx,
-        isBottomNode: idx === blocks.length - 1,
+        isBottomNode: idx === normalizedBlocks.length - 1,
         focusRef: nodeRefsMap.current[id],
         stackId: blk.stackId,
         stackIndex: blk.stackIndex,
@@ -1402,27 +1393,33 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       }))
     )
 
-    return {
+    const rawSnapshot = {
       version: STACK_SNAPSHOT_VERSION,
       blocks,
       timestamp: Date.now(),
       structureHash,
     }
+
+    // Normalize to ensure all content helpers are present
+    return normalizeStackSnapshot(rawSnapshot)
   }, [getBlocks, nodes])
 
   // Apply snapshot to restore state
-  const applySnapshot = useCallback((snapshot: StackSnapshot, options?: { silent?: boolean }) => {
+  const applySnapshot = useCallback((snapshot: Partial<StackSnapshot>, options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false
 
+    // Normalize incoming snapshot to ensure all helpers are present
+    const normalized = normalizeStackSnapshot(snapshot)
+
     console.log('📦 Stack Editor: Applying snapshot', {
-      version: snapshot.version,
-      blockCount: snapshot.blocks.length,
+      version: normalized.version,
+      blockCount: normalized.blocks.length,
       silent
     })
 
     // Validate version
-    if (snapshot.version !== STACK_SNAPSHOT_VERSION) {
-      console.warn(`📦 Stack Editor: Snapshot version mismatch. Expected ${STACK_SNAPSHOT_VERSION}, got ${snapshot.version}`)
+    if (normalized.version !== STACK_SNAPSHOT_VERSION) {
+      console.warn(`📦 Stack Editor: Snapshot version mismatch. Expected ${STACK_SNAPSHOT_VERSION}, got ${normalized.version}`)
     }
 
     // Set flags to prevent emissions during and after load
@@ -1434,8 +1431,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
     }
 
     try {
-      // Use loadBlocks to restore state
-      loadBlocks(snapshot.blocks)
+      // Use loadBlocks to restore state with normalized blocks
+      loadBlocks(normalized.blocks)
     } finally {
       if (silent) {
         // Keep suppress flag active longer to prevent post-restore emissions

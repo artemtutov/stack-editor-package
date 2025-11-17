@@ -194,9 +194,9 @@ export type StackEditorHookResult = {
   nodes: Node[]
   nodeTypes: NodeTypes
   onNodesChange: (changes: any) => void
-  onNodeDragStart: (evt: React.MouseEvent, node: Node) => void
-  onNodeDrag: (evt: React.MouseEvent, node: Node) => void
-  onNodeDragStop: (evt: React.MouseEvent, node: Node) => void
+  onNodeDragStart: (evt: React.MouseEvent | React.TouchEvent, node: Node) => void
+  onNodeDrag: (evt: React.MouseEvent | React.TouchEvent, node: Node) => void
+  onNodeDragStop: (evt: React.MouseEvent | React.TouchEvent, node: Node) => void
   onMove: (_evt: any, viewport: { x: number; y: number; zoom: number }) => void
   // Edge operations
   edges: Edge[]

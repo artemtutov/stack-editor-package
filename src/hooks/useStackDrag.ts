@@ -29,9 +29,9 @@ export type UseStackDragResult = {
     targetStackId: string | null
     insertionIndex: number
   }
-  onNodeDragStart: (evt: React.MouseEvent, node: Node, nodesRef: React.MutableRefObject<Node[]>) => void
+  onNodeDragStart: (evt: React.MouseEvent | React.TouchEvent, node: Node, nodesRef: React.MutableRefObject<Node[]>) => void
   onNodeDrag: (
-    evt: React.MouseEvent,
+    evt: React.MouseEvent | React.TouchEvent,
     node: Node,
     nodesRef: React.MutableRefObject<Node[]>,
     setNodes: (updater: (nodes: Node[]) => Node[]) => void,
@@ -39,7 +39,7 @@ export type UseStackDragResult = {
     zoom: number
   ) => void
   onNodeDragStop: (
-    evt: React.MouseEvent,
+    evt: React.MouseEvent | React.TouchEvent,
     node: Node,
     setNodes: (updater: (nodes: Node[]) => Node[]) => void,
     updateBottomFlags: (nodes: Node[]) => Node[],
@@ -118,7 +118,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
   const dragStartStackIdRef = useRef<string | null>(null)
 
   const onNodeDragStart = useCallback(
-    (_evt: React.MouseEvent, node: Node, nodesRef: React.MutableRefObject<Node[]>) => {
+    (_evt: React.MouseEvent | React.TouchEvent, node: Node, nodesRef: React.MutableRefObject<Node[]>) => {
       // Skip container drag - ReactFlow handles it automatically
       if ((node as any).type === 'stackContainer') {
         isDraggingStackRef.current = true
@@ -139,7 +139,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
 
   const onNodeDrag = useCallback(
     (
-      evt: React.MouseEvent,
+      evt: React.MouseEvent | React.TouchEvent,
       node: Node,
       nodesRef: React.MutableRefObject<Node[]>,
       setNodes: (updater: (nodes: Node[]) => Node[]) => void,
@@ -191,7 +191,7 @@ export function useStackDrag(options: UseStackDragOptions): UseStackDragResult {
 
   const onNodeDragStop = useCallback(
     (
-      _evt: React.MouseEvent,
+      _evt: React.MouseEvent | React.TouchEvent,
       node: Node,
       setNodes: (updater: (nodes: Node[]) => Node[]) => void,
       updateBottomFlags: (nodes: Node[]) => Node[],

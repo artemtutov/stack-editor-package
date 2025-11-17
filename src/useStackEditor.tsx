@@ -46,6 +46,7 @@ import { getAbsolutePosition, convertAbsoluteToRelative, convertRelativeToAbsolu
 import { enableLogging, disableLogging } from './utils/setupLogger'
 import { CanonicalNameRegistry, generateCanonicalName } from './logic/canonicalNames'
 import { extractPreview, detectContentType, computeContentHashSync, computeStructureHash, normalizeStackSnapshot, normalizeBlockSnapshot, PREVIEW_ALGO_VERSION, HASH_ALGO_VERSION } from './logic/contentHelpers'
+import { getEventCoordinates } from './utils/eventCoordinates'
 
 // Default options
 const DEFAULTS: Required<StackEditorOptions> = {
@@ -2418,7 +2419,8 @@ export function useStackEditor(args?: StackEditorHookArgs): StackEditorHookResul
       // Handle auto-grouping if enabled
       if (opts.enableAutoGrouping) {
         const allNodesSnapshot = reactFlowInstance.getNodes()
-        const dropPoint = reactFlowInstance.screenToFlowPosition({ x: evt.clientX, y: evt.clientY })
+        const coords = getEventCoordinates(evt)
+        const dropPoint = reactFlowInstance.screenToFlowPosition(coords)
         const intersectingGroup = findIntersectingGroup(dropPoint, allNodesSnapshot, opts.groupNodeTypes)
 
         const hadOriginalExtent = (node as any).__originalExtent
